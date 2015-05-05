@@ -44,8 +44,11 @@ bios-qemu: linux gen_rootfs optee-os
 		BIOS_SECURE_BLOB=$(OPTEE_OS_BIN) \
 		PLATFORM_FLAVOR=virt
 
-# FIXME: There's a magic sed taking place in the setup script today
 linux-defconfig:
+	# Temporary fix until we have the driver integrated in the kernel
+	if [ ! -f $(LINUX_PATH)/.config ]; then \
+		sed -i '/config ARM$$/a select DMA_SHARED_BUFFER' $(LINUX_PATH)/arch/arm/Kconfig; \
+	fi
 	make -C $(LINUX_PATH) ARCH=arm vexpress_defconfig
 
 linux: linux-defconfig
@@ -108,18 +111,19 @@ filelist-tee:
 	@echo "slink /lib/arm-linux-gnueabihf/libteec.so libteec.so.1 755 0 0" >> $(GEN_ROOTFS_FILELIST)
 
 gen_rootfs: filelist-tee optee-client optee-linuxdriver xtest
-	cd $(GEN_ROOTFS_PATH); \
-		CC_DIR=$(AARCH32_PATH) \
-		PATH=${PATH}:$(LINUX_PATH)/usr \
-		$(GEN_ROOTFS_PATH)/generate-cpio-rootfs.sh vexpress
-	cat $(GEN_ROOTFS_PATH)/filelist-final.txt $(GEN_ROOTFS_PATH)/filelist-tee.txt > $(GEN_ROOTFS_PATH)/filelist.tmp
-	cd $(GEN_ROOTFS_PATH); \
-		$(LINUX_PATH)/usr/gen_init_cpio $(GEN_ROOTFS_PATH)/filelist.tmp | gzip > $(GEN_ROOTFS_PATH)/filesystem.cpio.gz
+	@if [ ! -d "$(GEN_ROOTFS_PATH)/build" ]; then \
+		cd $(GEN_ROOTFS_PATH); \
+			CC_DIR=$(AARCH32_PATH) \
+			PATH=${PATH}:$(LINUX_PATH)/usr \
+			$(GEN_ROOTFS_PATH)/generate-cpio-rootfs.sh vexpress; \
+		cat $(GEN_ROOTFS_PATH)/filelist-final.txt $(GEN_ROOTFS_PATH)/filelist-tee.txt > $(GEN_ROOTFS_PATH)/filelist.tmp;  \
+		cd $(GEN_ROOTFS_PATH); \
+			$(LINUX_PATH)/usr/gen_init_cpio $(GEN_ROOTFS_PATH)/filelist.tmp | gzip > $(GEN_ROOTFS_PATH)/filesystem.cpio.gz; \
+	fi
 
 update_rootfs: filelist-tee
 	cd $(GEN_ROOTFS_PATH); \
 	        $(LINUX_PATH)/usr/gen_init_cpio $(GEN_ROOTFS_PATH)/filelist.tmp | gzip > $(GEN_ROOTFS_PATH)/filesystem.cpio.gz
-
 
 xtest: optee-os optee-client
 	@if [ -d "$(OPTEE_TEST_PATH)" ]; then \

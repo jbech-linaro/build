@@ -2,8 +2,6 @@ BASH := $(shell which bash)
 ROOT ?= ${HOME}/devel/optee
 $(shell mkdir -p $(ROOT))
 
--include toolchain.mk
-
 ################################################################################
 # Paths to git projects and various binaries
 ################################################################################
@@ -34,7 +32,9 @@ FOUNDATION_PATH			?= $(ROOT)/Foundation_Platformpkg
 ################################################################################
 # Targets
 ################################################################################
-all:
+all: arm-tf edk2 linux optee-os optee-client optee-linuxdriver generate-dtb gen_rootfs xtest
+
+-include toolchain.mk
 
 arm-tf: optee-os edk2
 	CFLAGS="-O0 -gdwarf-2" \
@@ -66,8 +66,11 @@ edk2: check-edk2
 	     EDK2_TOOLCHAIN=GCC49 EDK2_BUILD=RELEASE \
 	     EDK2_MACROS="-n 6 -D ARM_FOUNDATION_FVP=1"
 
-# FIXME: There's a magic sed taking place in the setup script today
 linux-defconfig:
+	# Temporary fix until we have the driver integrated in the kernel
+	if [ ! -f $(LINUX_PATH)/.config ]; then \
+		sed -i '/config ARM$$/a select DMA_SHARED_BUFFER' $(LINUX_PATH)/arch/arm/Kconfig; \
+	fi
 	make -C $(LINUX_PATH) ARCH=arm64 defconfig
 
 linux: linux-defconfig
@@ -142,24 +145,20 @@ update_rootfs: filelist-tee
 	cd $(GEN_ROOTFS_PATH); \
 	        $(LINUX_PATH)/usr/gen_init_cpio $(GEN_ROOTFS_PATH)/filelist.tmp | gzip > $(GEN_ROOTFS_PATH)/filesystem.cpio.gz
 
-check-xtest:
-	@if [ ! -d "$(OPTEE_TEST_PATH)" ]; then \
-		echo "optee_test is missing!"; \
-		false; \
-	fi
-
 xtest: check-xtest optee-os optee-client
+	@if [ -d "$(OPTEE_TEST_PATH)" ]; then \
 		make -C $(OPTEE_TEST_PATH) \
 		-j`getconf _NPROCESSORS_ONLN` \
 		CROSS_COMPILE_HOST=$(AARCH64_CROSS_COMPILE) \
 		CROSS_COMPILE_TA=$(AARCH32_CROSS_COMPILE) \
 		TA_DEV_KIT_DIR=$(OPTEE_OS_PATH)/out/arm-plat-vexpress/export-user_ta \
-		O=$(OPTEE_TEST_OUT_PATH)
+		O=$(OPTEE_TEST_OUT_PATH); \
+	fi
 
 run: update_rootfs
-	ln -sf $(LINUX_PATH)/arch/arm64/boot/Image $(FOUNDATION_PATH)
-	ln -sf $(GEN_ROOTFS_PATH)/filesystem.cpio.gz $(FOUNDATION_PATH)
-	cd $(FOUNDATION_PATH); \
+	@ln -sf $(LINUX_PATH)/arch/arm64/boot/Image $(FOUNDATION_PATH)
+	@ln -sf $(GEN_ROOTFS_PATH)/filesystem.cpio.gz $(FOUNDATION_PATH)
+	@cd $(FOUNDATION_PATH); \
 	$(FOUNDATION_PATH)/models/Linux64_GCC-4.1/Foundation_Platform \
 	--cores=4 \
 	--no-secure-memory \
