@@ -35,7 +35,7 @@ all: bios-qemu linux optee-os optee-client optee-linuxdriver qemu soc-term xtest
 
 -include toolchain.mk
 
-bios-qemu: linux gen_rootfs optee-os
+bios-qemu: linux update_rootfs optee-os
 	make -C $(BIOS_QEMU_PATH) \
 		CROSS_COMPILE=$(AARCH32_CROSS_COMPILE) \
 		O=$(ROOT)/out/bios-qemu \
@@ -79,6 +79,7 @@ optee-linuxdriver: linux
 		CROSS_COMPILE=$(AARCH32_CROSS_COMPILE) \
 		LOCALVERSION= \
 		M=$(OPTEE_LINUXDRIVER_PATH) modules
+
 qemu:
 	cd $(QEMU_PATH); ./configure --target-list=arm-softmmu
 	make -C $(QEMU_PATH) \
@@ -110,18 +111,16 @@ filelist-tee:
 	@echo "slink /lib/arm-linux-gnueabihf/libteec.so.1 libteec.so.1.0 755 0 0" >> $(GEN_ROOTFS_FILELIST)
 	@echo "slink /lib/arm-linux-gnueabihf/libteec.so libteec.so.1 755 0 0" >> $(GEN_ROOTFS_FILELIST)
 
-gen_rootfs: filelist-tee optee-client optee-linuxdriver xtest
+busybox:
 	@if [ ! -d "$(GEN_ROOTFS_PATH)/build" ]; then \
 		cd $(GEN_ROOTFS_PATH); \
 			CC_DIR=$(AARCH32_PATH) \
 			PATH=${PATH}:$(LINUX_PATH)/usr \
 			$(GEN_ROOTFS_PATH)/generate-cpio-rootfs.sh vexpress; \
-		cat $(GEN_ROOTFS_PATH)/filelist-final.txt $(GEN_ROOTFS_PATH)/filelist-tee.txt > $(GEN_ROOTFS_PATH)/filelist.tmp;  \
-		cd $(GEN_ROOTFS_PATH); \
-			$(LINUX_PATH)/usr/gen_init_cpio $(GEN_ROOTFS_PATH)/filelist.tmp | gzip > $(GEN_ROOTFS_PATH)/filesystem.cpio.gz; \
 	fi
 
-update_rootfs: filelist-tee
+update_rootfs: busybox optee-client optee-linuxdriver xtest filelist-tee
+	cat $(GEN_ROOTFS_PATH)/filelist-final.txt $(GEN_ROOTFS_PATH)/filelist-tee.txt > $(GEN_ROOTFS_PATH)/filelist.tmp
 	cd $(GEN_ROOTFS_PATH); \
 	        $(LINUX_PATH)/usr/gen_init_cpio $(GEN_ROOTFS_PATH)/filelist.tmp | gzip > $(GEN_ROOTFS_PATH)/filesystem.cpio.gz
 
@@ -135,7 +134,7 @@ xtest: optee-os optee-client
 		O=$(OPTEE_TEST_OUT_PATH); \
 	fi
 
-run: update_rootfs
+run: bios-qemu
 	@echo "Run QEMU"
 	@echo QEMU is now waiting to start the execution
 	@echo Start execution with either a \'c\' followed by \<enter\> in the QEMU console or

@@ -132,20 +132,20 @@ filelist-tee:
 	@echo "slink /lib/aarch64-linux-gnu/libteec.so.1 libteec.so.1.0 755 0 0" >> $(GEN_ROOTFS_FILELIST)
 	@echo "slink /lib/aarch64-linux-gnu/libteec.so libteec.so.1 755 0 0" >> $(GEN_ROOTFS_FILELIST)
 
-gen_rootfs: filelist-tee
-	cd $(GEN_ROOTFS_PATH); \
+busybox:
+	@if [ ! -d "$(GEN_ROOTFS_PATH)/build" ]; then \
+		cd $(GEN_ROOTFS_PATH); \
 		CC_DIR=$(AARCH64_PATH) \
 		PATH=${PATH}:$(LINUX_PATH)/usr \
-		$(GEN_ROOTFS_PATH)/generate-cpio-rootfs.sh fvp-aarch64
-	cat $(GEN_ROOTFS_PATH)/filelist-final.txt $(GEN_ROOTFS_PATH)/filelist-tee.txt > $(GEN_ROOTFS_PATH)/filelist.tmp
-	cd $(GEN_ROOTFS_PATH); \
-		$(LINUX_PATH)/usr/gen_init_cpio $(GEN_ROOTFS_PATH)/filelist.tmp | gzip > $(GEN_ROOTFS_PATH)/filesystem.cpio.gz
+		$(GEN_ROOTFS_PATH)/generate-cpio-rootfs.sh fvp-aarch64; \
+	fi
 
-update_rootfs: filelist-tee
+update_rootfs: busybox optee-client optee-linuxdriver xtest filelist-tee
+	cat $(GEN_ROOTFS_PATH)/filelist-final.txt $(GEN_ROOTFS_PATH)/filelist-tee.txt > $(GEN_ROOTFS_PATH)/filelist.tmp
 	cd $(GEN_ROOTFS_PATH); \
 	        $(LINUX_PATH)/usr/gen_init_cpio $(GEN_ROOTFS_PATH)/filelist.tmp | gzip > $(GEN_ROOTFS_PATH)/filesystem.cpio.gz
 
-xtest: check-xtest optee-os optee-client
+xtest: optee-os optee-client
 	@if [ -d "$(OPTEE_TEST_PATH)" ]; then \
 		make -C $(OPTEE_TEST_PATH) \
 		-j`getconf _NPROCESSORS_ONLN` \
