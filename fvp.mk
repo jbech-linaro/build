@@ -69,7 +69,7 @@ edk2: check-edk2
 linux-defconfig:
 	# Temporary fix until we have the driver integrated in the kernel
 	if [ ! -f $(LINUX_PATH)/.config ]; then \
-		sed -i '/config ARM$$/a select DMA_SHARED_BUFFER' $(LINUX_PATH)/arch/arm/Kconfig; \
+		sed -i '/config ARM64$$/a select DMA_SHARED_BUFFER' $(LINUX_PATH)/arch/arm64/Kconfig; \
 	fi
 	make -C $(LINUX_PATH) ARCH=arm64 defconfig
 
