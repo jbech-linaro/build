@@ -32,7 +32,7 @@ FOUNDATION_PATH			?= $(ROOT)/Foundation_Platformpkg
 ################################################################################
 # Targets
 ################################################################################
-all: arm-tf edk2 linux optee-os optee-client optee-linuxdriver generate-dtb gen_rootfs xtest
+all: arm-tf edk2 linux optee-os optee-client optee-linuxdriver generate-dtb xtest
 
 -include toolchain.mk
 

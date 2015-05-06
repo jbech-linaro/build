@@ -31,7 +31,7 @@ SOC_TERM_PATH			?= $(ROOT)/soc_term
 ################################################################################
 # Targets
 ################################################################################
-all: bios-qemu linux optee-os optee-client optee-linuxdriver qemu soc-term xtest gen_rootfs
+all: bios-qemu linux optee-os optee-client optee-linuxdriver qemu soc-term xtest
 
 -include toolchain.mk
 
