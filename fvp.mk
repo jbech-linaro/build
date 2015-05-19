@@ -19,6 +19,7 @@ OPTEE_OS_PATH 			?= $(ROOT)/optee_os
 OPTEE_OS_BIN 			?= $(OPTEE_OS_PATH)/out/arm-plat-vexpress/core/tee.bin
 
 OPTEE_CLIENT_PATH 		?= $(ROOT)/optee_client
+OPTEE_CLIENT_EXPORT		?= $(OPTEE_CLIENT_PATH)/out/export
 OPTEE_LINUXDRIVER_PATH 		?= $(ROOT)/optee_linuxdriver
 
 OPTEE_TEST_PATH 		?= $(ROOT)/optee_test
@@ -126,9 +127,9 @@ filelist-tee:
 	@echo "file /lib/modules/$(call KERNEL_VERSION)/optee.ko $(OPTEE_LINUXDRIVER_PATH)/core/optee.ko 755 0 0" >> $(GEN_ROOTFS_FILELIST)
 	@echo "file /lib/modules/$(call KERNEL_VERSION)/optee_armtz.ko $(OPTEE_LINUXDRIVER_PATH)/armtz/optee_armtz.ko 755 0 0" >> $(GEN_ROOTFS_FILELIST)
 	@echo "# OP-TEE Client" >> $(GEN_ROOTFS_FILELIST)
-	@echo "file /bin/tee-supplicant $(OPTEE_CLIENT_PATH)/out/export/bin/tee-supplicant 755 0 0" >> $(GEN_ROOTFS_FILELIST)
+	@echo "file /bin/tee-supplicant $(OPTEE_CLIENT_EXPORT)/bin/tee-supplicant 755 0 0" >> $(GEN_ROOTFS_FILELIST)
 	@echo "dir /lib/aarch64-linux-gnu 755 0 0" >> $(GEN_ROOTFS_FILELIST)
-	@echo "file /lib/aarch64-linux-gnu/libteec.so.1.0 $(OPTEE_CLIENT_PATH)/out/export/lib/libteec.so.1.0 755 0 0" >> $(GEN_ROOTFS_FILELIST)
+	@echo "file /lib/aarch64-linux-gnu/libteec.so.1.0 $(OPTEE_CLIENT_EXPORT)/lib/libteec.so.1.0 755 0 0" >> $(GEN_ROOTFS_FILELIST)
 	@echo "slink /lib/aarch64-linux-gnu/libteec.so.1 libteec.so.1.0 755 0 0" >> $(GEN_ROOTFS_FILELIST)
 	@echo "slink /lib/aarch64-linux-gnu/libteec.so libteec.so.1 755 0 0" >> $(GEN_ROOTFS_FILELIST)
 
