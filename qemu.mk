@@ -45,12 +45,12 @@ bios-qemu: linux update_rootfs optee-os
 		BIOS_SECURE_BLOB=$(OPTEE_OS_BIN) \
 		PLATFORM_FLAVOR=virt
 
-linux-defconfig:
+$(LINUX_PATH)/.config:
 	# Temporary fix until we have the driver integrated in the kernel
-	if [ ! -f $(LINUX_PATH)/.config ]; then \
-		sed -i '/config ARM$$/a select DMA_SHARED_BUFFER' $(LINUX_PATH)/arch/arm/Kconfig; \
-	fi
+	sed -i '/config ARM$$/a select DMA_SHARED_BUFFER' $(LINUX_PATH)/arch/arm/Kconfig;
 	make -C $(LINUX_PATH) ARCH=arm vexpress_defconfig
+
+linux-defconfig: $(LINUX_PATH)/.config
 
 linux: linux-defconfig
 	make -C $(LINUX_PATH) \
@@ -65,7 +65,9 @@ optee-os:
 		PLATFORM=vexpress \
 		PLATFORM_FLAVOR=qemu_virt \
 		CFG_TEE_CORE_LOG_LEVEL=4 \
-		DEBUG=0 \
+		DEBUG=1 \
+		CFG_WITH_PAGER=y \
+		CFG_ENC_FS=y \
 		-j`getconf _NPROCESSORS_ONLN`
 
 optee-client:
@@ -135,7 +137,7 @@ xtest: optee-os optee-client
 		O=$(OPTEE_TEST_OUT_PATH); \
 	fi
 
-run: bios-qemu
+define run-help
 	@echo "Run QEMU"
 	@echo QEMU is now waiting to start the execution
 	@echo Start execution with either a \'c\' followed by \<enter\> in the QEMU console or
@@ -150,6 +152,13 @@ run: bios-qemu
 	@echo
 	@echo To run a single test case replace the xtest command with for instance
 	@echo xtest 2001
+endef
+
+# This target enforces updating root fs etc
+run: | bios-qemu run-only
+
+run-only:
+	$(call run-help)
 	@gnome-terminal -e "$(BASH) -c '$(SOC_TERM_PATH)/soc_term 54320; exec /bin/bash -i'" --title="Normal world"
 	@gnome-terminal -e "$(BASH) -c '$(SOC_TERM_PATH)/soc_term 54321; exec /bin/bash -i'" --title="Secure world"
 	@sleep 1

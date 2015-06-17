@@ -67,12 +67,12 @@ edk2: check-edk2
 	     EDK2_TOOLCHAIN=GCC49 EDK2_BUILD=RELEASE \
 	     EDK2_MACROS="-n 6 -D ARM_FOUNDATION_FVP=1"
 
-linux-defconfig:
+$(LINUX_PATH)/.config:
 	# Temporary fix until we have the driver integrated in the kernel
-	if [ ! -f $(LINUX_PATH)/.config ]; then \
-		sed -i '/config ARM64$$/a select DMA_SHARED_BUFFER' $(LINUX_PATH)/arch/arm64/Kconfig; \
-	fi
+	sed -i '/config ARM64$$/a select DMA_SHARED_BUFFER' $(LINUX_PATH)/arch/arm64/Kconfig;
 	make -C $(LINUX_PATH) ARCH=arm64 defconfig
+
+linux-defconfig: $(LINUX_PATH)/.config
 
 linux: linux-defconfig
 	make -C $(LINUX_PATH) \
@@ -156,13 +156,16 @@ xtest: optee-os optee-client
 		O=$(OPTEE_TEST_OUT_PATH); \
 	fi
 
-run: update_rootfs
+# This target enforces updating root fs etc
+run: | update_rootfs run-only
+
+run-only:
 	@ln -sf $(LINUX_PATH)/arch/arm64/boot/Image $(FOUNDATION_PATH)
 	@ln -sf $(GEN_ROOTFS_PATH)/filesystem.cpio.gz $(FOUNDATION_PATH)
 	@cd $(FOUNDATION_PATH); \
 	$(FOUNDATION_PATH)/models/Linux64_GCC-4.1/Foundation_Platform \
 	--cores=4 \
-	--no-secure-memory \
+	--secure-memory \
 	--visualization \
 	--gicv3 \
 	--data="$(ARM_TF_PATH)/build/fvp/release/bl1.bin"@0x0 \
