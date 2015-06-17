@@ -38,7 +38,7 @@ all: bios-qemu linux optee-os optee-client optee-linuxdriver qemu soc-term xtest
 
 bios-qemu: linux update_rootfs optee-os
 	make -C $(BIOS_QEMU_PATH) \
-		CROSS_COMPILE=$(AARCH32_CROSS_COMPILE) \
+		CROSS_COMPILE="ccache $(AARCH32_CROSS_COMPILE)" \
 		O=$(ROOT)/out/bios-qemu \
 		BIOS_NSEC_BLOB=$(LINUX_PATH)/arch/arm/boot/zImage \
 		BIOS_NSEC_ROOTFS=$(GEN_ROOTFS_PATH)/filesystem.cpio.gz \
@@ -54,14 +54,14 @@ linux-defconfig: $(LINUX_PATH)/.config
 
 linux: linux-defconfig
 	make -C $(LINUX_PATH) \
-		CROSS_COMPILE=$(AARCH32_CROSS_COMPILE) \
+		CROSS_COMPILE="ccache $(AARCH32_CROSS_COMPILE)" \
 		LOCALVERSION= \
 		ARCH=arm \
 		-j`getconf _NPROCESSORS_ONLN`
 
 optee-os:
 	make -C $(OPTEE_OS_PATH) \
-		CROSS_COMPILE=$(AARCH32_CROSS_COMPILE) \
+		CROSS_COMPILE="ccache $(AARCH32_CROSS_COMPILE)" \
 		PLATFORM=vexpress \
 		PLATFORM_FLAVOR=qemu_virt \
 		CFG_TEE_CORE_LOG_LEVEL=4 \
@@ -72,14 +72,14 @@ optee-os:
 
 optee-client:
 	make -C $(OPTEE_CLIENT_PATH) \
-		CROSS_COMPILE=$(AARCH32_CROSS_COMPILE) \
+		CROSS_COMPILE="ccache $(AARCH32_CROSS_COMPILE)" \
 		-j`getconf _NPROCESSORS_ONLN`
 
 optee-linuxdriver: linux
 	make -C $(LINUX_PATH) \
 		V=0 \
 		ARCH=arm \
-		CROSS_COMPILE=$(AARCH32_CROSS_COMPILE) \
+		CROSS_COMPILE="ccache $(AARCH32_CROSS_COMPILE)" \
 		LOCALVERSION= \
 		M=$(OPTEE_LINUXDRIVER_PATH) modules
 
