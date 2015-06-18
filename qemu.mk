@@ -6,9 +6,6 @@ $(shell mkdir -p $(ROOT))
 # Paths to git projects and various binaries
 ################################################################################
 LINUX_PATH 			?= $(ROOT)/linux
-define KERNEL_VERSION
-$(shell cd $(LINUX_PATH) && make kernelversion)
-endef
 
 OPTEE_OS_PATH 			?= $(ROOT)/optee_os
 OPTEE_OS_BIN 			?= $(OPTEE_OS_PATH)/out/arm-plat-vexpress/core/tee.bin
@@ -30,6 +27,15 @@ QEMU_PATH			?= $(ROOT)/qemu
 SOC_TERM_PATH			?= $(ROOT)/soc_term
 
 ################################################################################
+# defines, macros, configuration etc
+################################################################################
+define KERNEL_VERSION
+$(shell cd $(LINUX_PATH) && make kernelversion)
+endef
+
+CCACHE ?= $(shell which ccache) # Don't remove this comment (space is needed)
+
+################################################################################
 # Targets
 ################################################################################
 all: bios-qemu linux optee-os optee-client optee-linuxdriver qemu soc-term xtest
@@ -38,12 +44,20 @@ all: bios-qemu linux optee-os optee-client optee-linuxdriver qemu soc-term xtest
 
 bios-qemu: linux update_rootfs optee-os
 	make -C $(BIOS_QEMU_PATH) \
-		CROSS_COMPILE="ccache $(AARCH32_CROSS_COMPILE)" \
+		CROSS_COMPILE="$(CCACHE)$(AARCH32_CROSS_COMPILE)" \
 		O=$(ROOT)/out/bios-qemu \
 		BIOS_NSEC_BLOB=$(LINUX_PATH)/arch/arm/boot/zImage \
 		BIOS_NSEC_ROOTFS=$(GEN_ROOTFS_PATH)/filesystem.cpio.gz \
 		BIOS_SECURE_BLOB=$(OPTEE_OS_BIN) \
 		PLATFORM_FLAVOR=virt
+
+busybox:
+	@if [ ! -d "$(GEN_ROOTFS_PATH)/build" ]; then \
+		cd $(GEN_ROOTFS_PATH); \
+			CC_DIR=$(AARCH32_PATH) \
+			PATH=${PATH}:$(LINUX_PATH)/usr \
+			$(GEN_ROOTFS_PATH)/generate-cpio-rootfs.sh vexpress; \
+	fi
 
 $(LINUX_PATH)/.config:
 	# Temporary fix until we have the driver integrated in the kernel
@@ -54,42 +68,50 @@ linux-defconfig: $(LINUX_PATH)/.config
 
 linux: linux-defconfig
 	make -C $(LINUX_PATH) \
-		CROSS_COMPILE="ccache $(AARCH32_CROSS_COMPILE)" \
+		CROSS_COMPILE="$(CCACHE)$(AARCH32_CROSS_COMPILE)" \
 		LOCALVERSION= \
 		ARCH=arm \
 		-j`getconf _NPROCESSORS_ONLN`
 
 optee-os:
 	make -C $(OPTEE_OS_PATH) \
-		CROSS_COMPILE="ccache $(AARCH32_CROSS_COMPILE)" \
+		CROSS_COMPILE="$(CCACHE)$(AARCH32_CROSS_COMPILE)" \
 		PLATFORM=vexpress \
 		PLATFORM_FLAVOR=qemu_virt \
-		CFG_TEE_CORE_LOG_LEVEL=4 \
+		CFG_TEE_CORE_LOG_LEVEL=3 \
 		DEBUG=1 \
-		CFG_WITH_PAGER=y \
-		CFG_ENC_FS=y \
 		-j`getconf _NPROCESSORS_ONLN`
 
 optee-client:
 	make -C $(OPTEE_CLIENT_PATH) \
-		CROSS_COMPILE="ccache $(AARCH32_CROSS_COMPILE)" \
+		CROSS_COMPILE="$(CCACHE)$(AARCH32_CROSS_COMPILE)" \
 		-j`getconf _NPROCESSORS_ONLN`
 
 optee-linuxdriver: linux
 	make -C $(LINUX_PATH) \
 		V=0 \
 		ARCH=arm \
-		CROSS_COMPILE="ccache $(AARCH32_CROSS_COMPILE)" \
+		CROSS_COMPILE="$(CCACHE)$(AARCH32_CROSS_COMPILE)" \
 		LOCALVERSION= \
 		M=$(OPTEE_LINUXDRIVER_PATH) modules
 
 qemu:
-	cd $(QEMU_PATH); ./configure --target-list=arm-softmmu --cc="ccache gcc"
+	cd $(QEMU_PATH); ./configure --target-list=arm-softmmu --cc="$(CCACHE)gcc"
 	make -C $(QEMU_PATH) \
 		-j`getconf _NPROCESSORS_ONLN`
 
 soc-term:
 	make -C $(SOC_TERM_PATH)
+
+xtest: optee-os optee-client
+	@if [ -d "$(OPTEE_TEST_PATH)" ]; then \
+		make -C $(OPTEE_TEST_PATH) \
+		-j`getconf _NPROCESSORS_ONLN` \
+		CROSS_COMPILE_HOST="$(CCACHE)$(AARCH32_CROSS_COMPILE)" \
+		CROSS_COMPILE_TA="$(CCACHE)$(AARCH32_CROSS_COMPILE)" \
+		TA_DEV_KIT_DIR=$(OPTEE_OS_PATH)/out/arm-plat-vexpress/export-user_ta \
+		O=$(OPTEE_TEST_OUT_PATH); \
+	fi
 
 .PHONY: filelist-tee
 filelist-tee:
@@ -114,28 +136,10 @@ filelist-tee:
 	@echo "slink /lib/arm-linux-gnueabihf/libteec.so.1 libteec.so.1.0 755 0 0" >> $(GEN_ROOTFS_FILELIST)
 	@echo "slink /lib/arm-linux-gnueabihf/libteec.so libteec.so.1 755 0 0" >> $(GEN_ROOTFS_FILELIST)
 
-busybox:
-	@if [ ! -d "$(GEN_ROOTFS_PATH)/build" ]; then \
-		cd $(GEN_ROOTFS_PATH); \
-			CC_DIR=$(AARCH32_PATH) \
-			PATH=${PATH}:$(LINUX_PATH)/usr \
-			$(GEN_ROOTFS_PATH)/generate-cpio-rootfs.sh vexpress; \
-	fi
-
 update_rootfs: busybox optee-client optee-linuxdriver xtest filelist-tee
 	cat $(GEN_ROOTFS_PATH)/filelist-final.txt $(GEN_ROOTFS_PATH)/filelist-tee.txt > $(GEN_ROOTFS_PATH)/filelist.tmp
 	cd $(GEN_ROOTFS_PATH); \
 	        $(LINUX_PATH)/usr/gen_init_cpio $(GEN_ROOTFS_PATH)/filelist.tmp | gzip > $(GEN_ROOTFS_PATH)/filesystem.cpio.gz
-
-xtest: optee-os optee-client
-	@if [ -d "$(OPTEE_TEST_PATH)" ]; then \
-		make -C $(OPTEE_TEST_PATH) \
-		-j`getconf _NPROCESSORS_ONLN` \
-		CROSS_COMPILE_HOST=$(AARCH32_CROSS_COMPILE) \
-		CROSS_COMPILE_TA=$(AARCH32_CROSS_COMPILE) \
-		TA_DEV_KIT_DIR=$(OPTEE_OS_PATH)/out/arm-plat-vexpress/export-user_ta \
-		O=$(OPTEE_TEST_OUT_PATH); \
-	fi
 
 define run-help
 	@echo "Run QEMU"
@@ -154,9 +158,11 @@ define run-help
 	@echo xtest 2001
 endef
 
+.PHONY: run
 # This target enforces updating root fs etc
 run: | bios-qemu run-only
 
+.PHONY: run-only
 run-only:
 	$(call run-help)
 	@gnome-terminal -e "$(BASH) -c '$(SOC_TERM_PATH)/soc_term 54320; exec /bin/bash -i'" --title="Normal world"
