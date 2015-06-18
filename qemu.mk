@@ -39,10 +39,12 @@ CCACHE ?= $(shell which ccache) # Don't remove this comment (space is needed)
 # Targets
 ################################################################################
 all: bios-qemu linux optee-os optee-client optee-linuxdriver qemu soc-term xtest
+all-clean: bios-qemu-clean busybox-clean linux-clean optee-os-clean \
+	optee-client-clean optee-linuxdriver-clean qemu-clean soc-term-clean
 
 -include toolchain.mk
 
-bios-qemu: linux update_rootfs optee-os
+define bios-qemu-common
 	make -C $(BIOS_QEMU_PATH) \
 		CROSS_COMPILE="$(CCACHE)$(AARCH32_CROSS_COMPILE)" \
 		O=$(ROOT)/out/bios-qemu \
@@ -50,6 +52,13 @@ bios-qemu: linux update_rootfs optee-os
 		BIOS_NSEC_ROOTFS=$(GEN_ROOTFS_PATH)/filesystem.cpio.gz \
 		BIOS_SECURE_BLOB=$(OPTEE_OS_BIN) \
 		PLATFORM_FLAVOR=virt
+endef
+
+bios-qemu: linux update_rootfs optee-os
+	$(call bios-qemu-common)
+
+bios-qemu-clean:
+	$(call bios-qemu-common) clean
 
 busybox:
 	@if [ ! -d "$(GEN_ROOTFS_PATH)/build" ]; then \
@@ -58,6 +67,11 @@ busybox:
 			PATH=${PATH}:$(LINUX_PATH)/usr \
 			$(GEN_ROOTFS_PATH)/generate-cpio-rootfs.sh vexpress; \
 	fi
+
+busybox-clean:
+	cd $(GEN_ROOTFS_PATH); \
+		$(GEN_ROOTFS_PATH)/generate-cpio-rootfs.sh vexpress clean
+
 
 $(LINUX_PATH)/.config:
 	# Temporary fix until we have the driver integrated in the kernel
@@ -73,6 +87,11 @@ linux: linux-defconfig
 		ARCH=arm \
 		-j`getconf _NPROCESSORS_ONLN`
 
+linux-clean:
+	make -C $(LINUX_PATH) \
+		CROSS_COMPILE="$(CCACHE)$(AARCH32_CROSS_COMPILE)" \
+		mrproper
+
 optee-os:
 	make -C $(OPTEE_OS_PATH) \
 		CROSS_COMPILE="$(CCACHE)$(AARCH32_CROSS_COMPILE)" \
@@ -82,10 +101,19 @@ optee-os:
 		DEBUG=1 \
 		-j`getconf _NPROCESSORS_ONLN`
 
+optee-os-clean:
+	make -C $(OPTEE_OS_PATH) \
+		PLATFORM=vexpress \
+		PLATFORM_FLAVOR=qemu_virt \
+		clean
+
 optee-client:
 	make -C $(OPTEE_CLIENT_PATH) \
 		CROSS_COMPILE="$(CCACHE)$(AARCH32_CROSS_COMPILE)" \
 		-j`getconf _NPROCESSORS_ONLN`
+
+optee-client-clean:
+	make -C $(OPTEE_CLIENT_PATH) clean
 
 optee-linuxdriver: linux
 	make -C $(LINUX_PATH) \
@@ -95,13 +123,23 @@ optee-linuxdriver: linux
 		LOCALVERSION= \
 		M=$(OPTEE_LINUXDRIVER_PATH) modules
 
+optee-linuxdriver-clean:
+	make -C $(LINUX_PATH) \
+		M=$(OPTEE_LINUXDRIVER_PATH) clean
+
 qemu:
 	cd $(QEMU_PATH); ./configure --target-list=arm-softmmu --cc="$(CCACHE)gcc"
 	make -C $(QEMU_PATH) \
 		-j`getconf _NPROCESSORS_ONLN`
 
+qemu-clean:
+	make -C $(QEMU_PATH) distclean
+
 soc-term:
 	make -C $(SOC_TERM_PATH)
+
+soc-term-clean:
+	make -C $(SOC_TERM_PATH) clean
 
 xtest: optee-os optee-client
 	@if [ -d "$(OPTEE_TEST_PATH)" ]; then \
@@ -139,7 +177,7 @@ filelist-tee:
 update_rootfs: busybox optee-client optee-linuxdriver xtest filelist-tee
 	cat $(GEN_ROOTFS_PATH)/filelist-final.txt $(GEN_ROOTFS_PATH)/filelist-tee.txt > $(GEN_ROOTFS_PATH)/filelist.tmp
 	cd $(GEN_ROOTFS_PATH); \
-	        $(LINUX_PATH)/usr/gen_init_cpio $(GEN_ROOTFS_PATH)/filelist.tmp | gzip > $(GEN_ROOTFS_PATH)/filesystem.cpio.gz
+		$(LINUX_PATH)/usr/gen_init_cpio $(GEN_ROOTFS_PATH)/filelist.tmp | gzip > $(GEN_ROOTFS_PATH)/filesystem.cpio.gz
 
 define run-help
 	@echo "Run QEMU"
