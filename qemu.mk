@@ -84,7 +84,7 @@ optee-linuxdriver: linux
 		M=$(OPTEE_LINUXDRIVER_PATH) modules
 
 qemu:
-	cd $(QEMU_PATH); ./configure --target-list=arm-softmmu
+	cd $(QEMU_PATH); ./configure --target-list=arm-softmmu --cc="ccache gcc"
 	make -C $(QEMU_PATH) \
 		-j`getconf _NPROCESSORS_ONLN`
 
