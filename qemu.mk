@@ -44,6 +44,9 @@ all-clean: bios-qemu-clean busybox-clean linux-clean optee-os-clean \
 
 -include toolchain.mk
 
+################################################################################
+# QEMU
+################################################################################
 define bios-qemu-common
 	make -C $(BIOS_QEMU_PATH) \
 		CROSS_COMPILE="$(CCACHE)$(AARCH32_CROSS_COMPILE)" \
@@ -60,6 +63,17 @@ bios-qemu: linux update_rootfs optee-os
 bios-qemu-clean:
 	$(call bios-qemu-common) clean
 
+qemu:
+	cd $(QEMU_PATH); ./configure --target-list=arm-softmmu --cc="$(CCACHE)gcc"
+	make -C $(QEMU_PATH) \
+		-j`getconf _NPROCESSORS_ONLN`
+
+qemu-clean:
+	make -C $(QEMU_PATH) distclean
+
+################################################################################
+# Busybox
+################################################################################
 busybox:
 	@if [ ! -d "$(GEN_ROOTFS_PATH)/build" ]; then \
 		cd $(GEN_ROOTFS_PATH); \
@@ -73,6 +87,9 @@ busybox-clean:
 		$(GEN_ROOTFS_PATH)/generate-cpio-rootfs.sh vexpress clean
 
 
+################################################################################
+# Linux kernel
+################################################################################
 $(LINUX_PATH)/.config:
 	# Temporary fix until we have the driver integrated in the kernel
 	sed -i '/config ARM$$/a select DMA_SHARED_BUFFER' $(LINUX_PATH)/arch/arm/Kconfig;
@@ -92,6 +109,9 @@ linux-clean:
 		CROSS_COMPILE="$(CCACHE)$(AARCH32_CROSS_COMPILE)" \
 		mrproper
 
+################################################################################
+# OP-TEE
+################################################################################
 optee-os:
 	make -C $(OPTEE_OS_PATH) \
 		CROSS_COMPILE="$(CCACHE)$(AARCH32_CROSS_COMPILE)" \
@@ -127,20 +147,18 @@ optee-linuxdriver-clean:
 	make -C $(LINUX_PATH) \
 		M=$(OPTEE_LINUXDRIVER_PATH) clean
 
-qemu:
-	cd $(QEMU_PATH); ./configure --target-list=arm-softmmu --cc="$(CCACHE)gcc"
-	make -C $(QEMU_PATH) \
-		-j`getconf _NPROCESSORS_ONLN`
-
-qemu-clean:
-	make -C $(QEMU_PATH) distclean
-
+################################################################################
+# Soc-term
+################################################################################
 soc-term:
 	make -C $(SOC_TERM_PATH)
 
 soc-term-clean:
 	make -C $(SOC_TERM_PATH) clean
 
+################################################################################
+# xtest / optee_test
+################################################################################
 xtest: optee-os optee-client
 	@if [ -d "$(OPTEE_TEST_PATH)" ]; then \
 		make -C $(OPTEE_TEST_PATH) \
@@ -151,6 +169,9 @@ xtest: optee-os optee-client
 		O=$(OPTEE_TEST_OUT_PATH); \
 	fi
 
+################################################################################
+# Root FS
+################################################################################
 .PHONY: filelist-tee
 filelist-tee:
 	@echo "# xtest / optee_test" > $(GEN_ROOTFS_FILELIST)
@@ -196,6 +217,9 @@ define run-help
 	@echo xtest 2001
 endef
 
+################################################################################
+# Run targets
+################################################################################
 .PHONY: run
 # This target enforces updating root fs etc
 run: | bios-qemu run-only
