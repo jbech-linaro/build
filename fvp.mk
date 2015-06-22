@@ -11,9 +11,6 @@ EDK2_PATH 			?= $(ROOT)/edk2
 EDK2_BIN 			?= $(EDK2_PATH)/Build/ArmVExpress-FVP-AArch64/RELEASE_GCC49/FV/FVP_AARCH64_EFI.fd
 
 LINUX_PATH 			?= $(ROOT)/linux
-define KERNEL_VERSION
-$(shell cd $(LINUX_PATH) && make kernelversion)
-endef
 
 OPTEE_OS_PATH 			?= $(ROOT)/optee_os
 OPTEE_OS_BIN 			?= $(OPTEE_OS_PATH)/out/arm-plat-vexpress/core/tee.bin
@@ -31,6 +28,15 @@ GEN_ROOTFS_FILELIST 		?= $(GEN_ROOTFS_PATH)/filelist-tee.txt
 FOUNDATION_PATH			?= $(ROOT)/Foundation_Platformpkg
 
 ################################################################################
+# defines, macros, configuration etc
+################################################################################
+define KERNEL_VERSION
+$(shell cd $(LINUX_PATH) && make kernelversion)
+endef
+
+CCACHE ?= $(shell which ccache) # Don't remove this comment (space is needed)
+
+################################################################################
 # Targets
 ################################################################################
 all: arm-tf edk2 linux optee-os optee-client optee-linuxdriver generate-dtb xtest
@@ -39,7 +45,7 @@ all: arm-tf edk2 linux optee-os optee-client optee-linuxdriver generate-dtb xtes
 
 arm-tf: optee-os edk2
 	CFLAGS="-O0 -gdwarf-2" \
-	CROSS_COMPILE=$(AARCH64_NONE_CROSS_COMPILE) \
+	CROSS_COMPILE="$(CCACHE)$(AARCH64_NONE_CROSS_COMPILE)" \
 	BL32=$(OPTEE_OS_BIN) \
 	BL33=$(EDK2_BIN) \
 	make -C $(ARM_TF_PATH) \
@@ -50,6 +56,18 @@ arm-tf: optee-os edk2
 	       PLAT=fvp \
 	       SPD=opteed \
 	       all fip
+
+busybox:
+	@if [ ! -d "$(GEN_ROOTFS_PATH)/build" ]; then \
+		cd $(GEN_ROOTFS_PATH); \
+		CC_DIR=$(AARCH64_PATH) \
+		PATH=${PATH}:$(LINUX_PATH)/usr \
+		$(GEN_ROOTFS_PATH)/generate-cpio-rootfs.sh fvp-aarch64; \
+	fi
+
+busybox-clean:
+	cd $(GEN_ROOTFS_PATH); \
+		$(GEN_ROOTFS_PATH)/generate-cpio-rootfs.sh fvp-aarch64 clean
 
 # Make sure edksetup.sh only will be called once
 check-edk2:
@@ -76,32 +94,45 @@ linux-defconfig: $(LINUX_PATH)/.config
 
 linux: linux-defconfig
 	make -C $(LINUX_PATH) \
-		CROSS_COMPILE=$(AARCH64_NONE_CROSS_COMPILE) \
+		CROSS_COMPILE="$(CCACHE)$(AARCH64_NONE_CROSS_COMPILE)" \
 		LOCALVERSION= \
 		ARCH=arm64 \
 		-j`getconf _NPROCESSORS_ONLN`
 
 optee-os:
 	make -C $(OPTEE_OS_PATH) \
-		CROSS_COMPILE=$(AARCH32_CROSS_COMPILE) \
+		CROSS_COMPILE="$(CCACHE)$(AARCH32_CROSS_COMPILE)" \
 		PLATFORM=vexpress \
 		PLATFORM_FLAVOR=fvp \
-		CFG_TEE_CORE_LOG_LEVEL=4 \
-		DEBUG=0 \
+		CFG_TEE_CORE_LOG_LEVEL=3 \
+		DEBUG=1 \
 		-j`getconf _NPROCESSORS_ONLN`
+
+optee-os-clean:
+	make -C $(OPTEE_OS_PATH) \
+		PLATFORM=vexpress \
+		PLATFORM_FLAVOR=fvp \
+		clean
 
 optee-client:
 	make -C $(OPTEE_CLIENT_PATH) \
-		CROSS_COMPILE=$(AARCH64_CROSS_COMPILE) \
+		CROSS_COMPILE="$(CCACHE)$(AARCH64_CROSS_COMPILE)" \
 		-j`getconf _NPROCESSORS_ONLN`
+
+optee-client-clean:
+	make -C $(OPTEE_CLIENT_PATH) clean
 
 optee-linuxdriver: linux
 	make -C $(LINUX_PATH) \
 		V=0 \
 		ARCH=arm64 \
-		CROSS_COMPILE=$(AARCH64_CROSS_COMPILE) \
+		CROSS_COMPILE="$(CCACHE)$(AARCH64_CROSS_COMPILE)" \
 		LOCALVERSION= \
 		M=$(OPTEE_LINUXDRIVER_PATH) modules
+
+optee-linuxdriver-clean:
+	make -C $(LINUX_PATH) \
+		M=$(OPTEE_LINUXDRIVER_PATH) clean
 
 generate-dtb:
 	$(LINUX_PATH)/scripts/dtc/dtc \
@@ -133,14 +164,6 @@ filelist-tee:
 	@echo "slink /lib/aarch64-linux-gnu/libteec.so.1 libteec.so.1.0 755 0 0" >> $(GEN_ROOTFS_FILELIST)
 	@echo "slink /lib/aarch64-linux-gnu/libteec.so libteec.so.1 755 0 0" >> $(GEN_ROOTFS_FILELIST)
 
-busybox:
-	@if [ ! -d "$(GEN_ROOTFS_PATH)/build" ]; then \
-		cd $(GEN_ROOTFS_PATH); \
-		CC_DIR=$(AARCH64_PATH) \
-		PATH=${PATH}:$(LINUX_PATH)/usr \
-		$(GEN_ROOTFS_PATH)/generate-cpio-rootfs.sh fvp-aarch64; \
-	fi
-
 update_rootfs: busybox optee-client optee-linuxdriver xtest filelist-tee
 	cat $(GEN_ROOTFS_PATH)/filelist-final.txt $(GEN_ROOTFS_PATH)/filelist-tee.txt > $(GEN_ROOTFS_PATH)/filelist.tmp
 	cd $(GEN_ROOTFS_PATH); \
@@ -150,8 +173,8 @@ xtest: optee-os optee-client
 	@if [ -d "$(OPTEE_TEST_PATH)" ]; then \
 		make -C $(OPTEE_TEST_PATH) \
 		-j`getconf _NPROCESSORS_ONLN` \
-		CROSS_COMPILE_HOST=$(AARCH64_CROSS_COMPILE) \
-		CROSS_COMPILE_TA=$(AARCH32_CROSS_COMPILE) \
+		CROSS_COMPILE_HOST="$(CCACHE)$(AARCH64_CROSS_COMPILE)" \
+		CROSS_COMPILE_TA="$(CCACHE)$(AARCH32_CROSS_COMPILE)" \
 		TA_DEV_KIT_DIR=$(OPTEE_OS_PATH)/out/arm-plat-vexpress/export-user_ta \
 		O=$(OPTEE_TEST_OUT_PATH); \
 	fi
