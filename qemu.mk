@@ -200,6 +200,9 @@ update_rootfs: busybox optee-client optee-linuxdriver xtest filelist-tee
 	cd $(GEN_ROOTFS_PATH); \
 		$(LINUX_PATH)/usr/gen_init_cpio $(GEN_ROOTFS_PATH)/filelist.tmp | gzip > $(GEN_ROOTFS_PATH)/filesystem.cpio.gz
 
+################################################################################
+# Run targets
+################################################################################
 define run-help
 	@echo "Run QEMU"
 	@echo QEMU is now waiting to start the execution
@@ -217,9 +220,6 @@ define run-help
 	@echo xtest 2001
 endef
 
-################################################################################
-# Run targets
-################################################################################
 .PHONY: run
 # This target enforces updating root fs etc
 run: | bios-qemu run-only
