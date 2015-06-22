@@ -40,9 +40,15 @@ CCACHE ?= $(shell which ccache) # Don't remove this comment (space is needed)
 # Targets
 ################################################################################
 all: arm-tf edk2 linux optee-os optee-client optee-linuxdriver generate-dtb xtest
+all-clean: arm-tf-clean busybox-clean edk2-clean optee-os-clean \
+	optee-client-clean optee-linuxdriver-clean
+
 
 -include toolchain.mk
 
+################################################################################
+# ARM Trusted Firmware
+################################################################################
 arm-tf: optee-os edk2
 	CFLAGS="-O0 -gdwarf-2" \
 	CROSS_COMPILE="$(CCACHE)$(AARCH64_NONE_CROSS_COMPILE)" \
@@ -57,6 +63,12 @@ arm-tf: optee-os edk2
 	       SPD=opteed \
 	       all fip
 
+arm-tf-clean:
+	make -C $(ARM_TF_PATH) clean
+
+################################################################################
+# Busybox
+################################################################################
 busybox:
 	@if [ ! -d "$(GEN_ROOTFS_PATH)/build" ]; then \
 		cd $(GEN_ROOTFS_PATH); \
@@ -69,22 +81,36 @@ busybox-clean:
 	cd $(GEN_ROOTFS_PATH); \
 		$(GEN_ROOTFS_PATH)/generate-cpio-rootfs.sh fvp-aarch64 clean
 
-# Make sure edksetup.sh only will be called once
-check-edk2:
-	@if [ ! -f "$(EDK2_PATH)/Conf/target.txt" ]; then \
-		cd $(EDK2_PATH); $(BASH) edksetup.sh; \
+################################################################################
+# EDK2 / Tianocore
+################################################################################
+# Make sure edksetup.sh only will be called once and that we don't rebuild
+# BaseTools again and again.
+$(EDK2_PATH)/Conf/target.txt:
+	cd $(EDK2_PATH); $(BASH) edksetup.sh; \
 		make -C $(EDK2_PATH)/BaseTools clean; \
 		make -C $(EDK2_PATH)/BaseTools;  \
-	fi
 
-edk2: check-edk2
+define edk2-common
 	GCC49_AARCH64_PREFIX=$(AARCH64_NONE_CROSS_COMPILE) \
 	     make -C $(EDK2_PATH) \
 	     -f ArmPlatformPkg/Scripts/Makefile EDK2_ARCH=AARCH64 \
 	     EDK2_DSC=ArmPlatformPkg/ArmVExpressPkg/ArmVExpress-FVP-AArch64.dsc \
 	     EDK2_TOOLCHAIN=GCC49 EDK2_BUILD=RELEASE \
 	     EDK2_MACROS="-n 6 -D ARM_FOUNDATION_FVP=1"
+endef
 
+edk2: $(EDK2_PATH)/Conf/target.txt
+	$(call edk2-common)
+
+edk2-clean:
+	$(call edk2-common) clean
+	cd $(EDK2_PATH); \
+		make -C BaseTools clean
+
+################################################################################
+# Linux kernel
+################################################################################
 $(LINUX_PATH)/.config:
 	# Temporary fix until we have the driver integrated in the kernel
 	sed -i '/config ARM64$$/a select DMA_SHARED_BUFFER' $(LINUX_PATH)/arch/arm64/Kconfig;
@@ -99,6 +125,9 @@ linux: linux-defconfig
 		ARCH=arm64 \
 		-j`getconf _NPROCESSORS_ONLN`
 
+################################################################################
+# OP-TEE
+################################################################################
 optee-os:
 	make -C $(OPTEE_OS_PATH) \
 		CROSS_COMPILE="$(CCACHE)$(AARCH32_CROSS_COMPILE)" \
@@ -141,6 +170,22 @@ generate-dtb:
 		-b 0 \
 		-i . $(OPTEE_LINUXDRIVER_PATH)/fdts/fvp-foundation-gicv2-psci.dts
 
+################################################################################
+# xtest / optee_test
+################################################################################
+xtest: optee-os optee-client
+	@if [ -d "$(OPTEE_TEST_PATH)" ]; then \
+		make -C $(OPTEE_TEST_PATH) \
+		-j`getconf _NPROCESSORS_ONLN` \
+		CROSS_COMPILE_HOST="$(CCACHE)$(AARCH64_CROSS_COMPILE)" \
+		CROSS_COMPILE_TA="$(CCACHE)$(AARCH32_CROSS_COMPILE)" \
+		TA_DEV_KIT_DIR=$(OPTEE_OS_PATH)/out/arm-plat-vexpress/export-user_ta \
+		O=$(OPTEE_TEST_OUT_PATH); \
+	fi
+
+################################################################################
+# Root FS
+################################################################################
 .PHONY: filelist-tee
 filelist-tee:
 	@echo "# xtest / optee_test" > $(GEN_ROOTFS_FILELIST)
@@ -169,16 +214,9 @@ update_rootfs: busybox optee-client optee-linuxdriver xtest filelist-tee
 	cd $(GEN_ROOTFS_PATH); \
 	        $(LINUX_PATH)/usr/gen_init_cpio $(GEN_ROOTFS_PATH)/filelist.tmp | gzip > $(GEN_ROOTFS_PATH)/filesystem.cpio.gz
 
-xtest: optee-os optee-client
-	@if [ -d "$(OPTEE_TEST_PATH)" ]; then \
-		make -C $(OPTEE_TEST_PATH) \
-		-j`getconf _NPROCESSORS_ONLN` \
-		CROSS_COMPILE_HOST="$(CCACHE)$(AARCH64_CROSS_COMPILE)" \
-		CROSS_COMPILE_TA="$(CCACHE)$(AARCH32_CROSS_COMPILE)" \
-		TA_DEV_KIT_DIR=$(OPTEE_OS_PATH)/out/arm-plat-vexpress/export-user_ta \
-		O=$(OPTEE_TEST_OUT_PATH); \
-	fi
-
+################################################################################
+# Run targets
+################################################################################
 # This target enforces updating root fs etc
 run: | update_rootfs run-only
 
