@@ -147,9 +147,12 @@ xtest-patch: xtest-patch-common
 filelist-tee: xtest
 	@echo "# xtest / optee_test" > $(GEN_ROOTFS_FILELIST)
 	@find $(OPTEE_TEST_OUT_PATH) -type f -name "xtest" | sed 's/\(.*\)/file \/bin\/xtest \1 755 0 0/g' >> $(GEN_ROOTFS_FILELIST)
+	@find $(ROOT)/optee-widevine-ref -type f -name "optee_wv_client" | sed 's/\(.*\)/file \/bin\/optee_wv_client \1 755 0 0/g' >> $(GEN_ROOTFS_FILELIST)
 	@echo "# TAs" >> $(GEN_ROOTFS_FILELIST)
 	@echo "dir /lib/optee_armtz 755 0 0" >> $(GEN_ROOTFS_FILELIST)
 	@find $(OPTEE_TEST_OUT_PATH) -name "*.ta" | \
+		sed 's/\(.*\)\/\(.*\)/file \/lib\/optee_armtz\/\2 \1\/\2 444 0 0/g' >> $(GEN_ROOTFS_FILELIST)
+	@find $(ROOT)/out/optee-widevine-ref -name "*.ta" | \
 		sed 's/\(.*\)\/\(.*\)/file \/lib\/optee_armtz\/\2 \1\/\2 444 0 0/g' >> $(GEN_ROOTFS_FILELIST)
 	@echo "# Secure storage dig" >> $(GEN_ROOTFS_FILELIST)
 	@echo "dir /data 755 0 0" >> $(GEN_ROOTFS_FILELIST)
@@ -170,6 +173,9 @@ update_rootfs: busybox optee-client optee-linuxdriver filelist-tee
 	cat $(GEN_ROOTFS_PATH)/filelist-final.txt $(GEN_ROOTFS_PATH)/filelist-tee.txt > $(GEN_ROOTFS_PATH)/filelist.tmp
 	cd $(GEN_ROOTFS_PATH); \
 		$(LINUX_PATH)/usr/gen_init_cpio $(GEN_ROOTFS_PATH)/filelist.tmp | gzip > $(GEN_ROOTFS_PATH)/filesystem.cpio.gz
+
+optee-wv:
+	$(ROOT)/optee-widevine-ref/build-optee-widevine-ref.sh $(ROOT)
 
 ################################################################################
 # Run targets
