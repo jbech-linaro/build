@@ -1,6 +1,5 @@
 BASH := $(shell which bash)
-ROOT ?= ${HOME}/devel/optee
-$(shell mkdir -p $(ROOT))
+ROOT ?= $(subst /build/,,$(shell pwd)/)
 DEBUG = 0
 
 ################################################################################
