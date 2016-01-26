@@ -165,6 +165,8 @@ filelist-tee: xtest
 	@echo "file /lib/arm-linux-gnueabihf/libteec.so.1.0 $(OPTEE_CLIENT_EXPORT)/lib/libteec.so.1.0 755 0 0" >> $(GEN_ROOTFS_FILELIST)
 	@echo "slink /lib/arm-linux-gnueabihf/libteec.so.1 libteec.so.1.0 755 0 0" >> $(GEN_ROOTFS_FILELIST)
 	@echo "slink /lib/arm-linux-gnueabihf/libteec.so libteec.so.1 755 0 0" >> $(GEN_ROOTFS_FILELIST)
+	@echo "file /bin/template_ta $(ROOT)/template_ta/host/template_ta_host 755 0 0" >> $(GEN_ROOTFS_FILELIST)
+	@echo "file /lib/optee_armtz/11111111-2222-3333-445566778899aabb.ta $(ROOT)/template_ta/ta/out/11111111-2222-3333-445566778899aabb.ta 755 0 0" >> $(GEN_ROOTFS_FILELIST)
 
 update_rootfs: busybox optee-client optee-linuxdriver filelist-tee
 	cat $(GEN_ROOTFS_PATH)/filelist-final.txt $(GEN_ROOTFS_PATH)/filelist-tee.txt > $(GEN_ROOTFS_PATH)/filelist.tmp
