@@ -44,7 +44,6 @@ RPI3_FIRMWARE_PATH	?= $(BUILD_PATH)/rpi3/firmware
 RPI3_HEAD_BIN		?= $(RPI3_FIRMWARE_PATH)/head.bin
 RPI3_BOOT_CONFIG	?= $(RPI3_FIRMWARE_PATH)/config.txt
 RPI3_UBOOT_ENV		?= $(RPI3_FIRMWARE_PATH)/uboot.env
-RPI3_STOCK_FW_PATH	?= $(ROOT)/rpi3_firmware
 
 OPTEE_OS_PAGER		?= $(OPTEE_OS_PATH)/out/arm/core/tee-pager.bin
 
