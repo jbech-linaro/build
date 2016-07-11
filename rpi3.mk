@@ -47,7 +47,6 @@ RPI3_HEAD_BIN		?= $(RPI3_FIRMWARE_PATH)/head.bin
 RPI3_BOOT_CONFIG	?= $(RPI3_FIRMWARE_PATH)/config.txt
 RPI3_UBOOT_ENV		?= $(RPI3_FIRMWARE_PATH)/uboot.env
 RPI3_OPTEE_INIT		?= $(RPI3_FIRMWARE_PATH)/optee
-RPI3_OPTEE_ROOTFS	?= $(GEN_ROOTFS_PATH)/pi3_rootfs_overlay.tar.gz
 RPI3_STOCK_FW_PATH	?= $(ROOT)/rpi3_firmware
 
 OPTEE_OS_PAGER		?= $(OPTEE_OS_PATH)/out/arm/core/tee-pager.bin
@@ -60,7 +59,7 @@ MODULE_OUTPUT		?= $(ROOT)/module_output
 # Targets
 ################################################################################
 all: arm-tf optee-os optee-client xtest u-boot linux update_rootfs
-all-clean: arm-tf-clean u-boot-clean optee-os-clean \
+all-clean: arm-tf-clean busybox-clean u-boot-clean optee-os-clean \
 	optee-client-clean
 
 
@@ -115,6 +114,17 @@ u-boot-clean:
 	$(U-BOOT_EXPORTS) $(MAKE) -C $(U-BOOT_PATH) clean
 
 ################################################################################
+# Busybox
+################################################################################
+BUSYBOX_COMMON_TARGET = fvp
+BUSYBOX_CLEAN_COMMON_TARGET = fvp clean
+
+busybox: busybox-common
+
+busybox-clean: busybox-clean-common
+
+busybox-cleaner: busybox-cleaner-common
+################################################################################
 # Linux kernel
 ################################################################################
 LINUX_DEFCONFIG_COMMON_ARCH := arm64
@@ -127,7 +137,7 @@ linux-defconfig: $(LINUX_PATH)/.config
 LINUX_COMMON_FLAGS += ARCH=arm64
 
 linux: linux-common
-	$(MAKE) -C $(LINUX_PATH) $(LINUX_COMMON_FLAGS) INSTALL_MOD_PATH=$(MODULE_OUTPUT) modules_install
+	$(MAKE) -C $(LINUX_PATH) $(LINUX_COMMON_FLAGS) INSTALL_MOD_STRIP=1 INSTALL_MOD_PATH=$(MODULE_OUTPUT) modules_install
 
 linux-defconfig-clean: linux-defconfig-clean-common
 
@@ -184,12 +194,12 @@ xtest-patch: xtest-patch-common
 .PHONY: filelist-tee
 filelist-tee:
 	@echo "# xtest / optee_test" > $(GEN_ROOTFS_FILELIST)
-	@find $(OPTEE_TEST_OUT_PATH) -type f -name "xtest" | sed 's/\(.*\)/file \/usr\/bin\/xtest \1 755 0 0/g' >> $(GEN_ROOTFS_FILELIST)
+	@find $(OPTEE_TEST_OUT_PATH) -type f -name "xtest" | sed 's/\(.*\)/file \/bin\/xtest \1 755 0 0/g' >> $(GEN_ROOTFS_FILELIST)
 	@echo "# TAs" >> $(GEN_ROOTFS_FILELIST)
 	@echo "dir /lib/optee_armtz 755 0 0" >> $(GEN_ROOTFS_FILELIST)
 	@find $(OPTEE_TEST_OUT_PATH) -name "*.ta" | \
 		sed 's/\(.*\)\/\(.*\)/file \/lib\/optee_armtz\/\2 \1\/\2 444 0 0/g' >> $(GEN_ROOTFS_FILELIST)
-	@echo "# Secure storage dig" >> $(GEN_ROOTFS_FILELIST)
+	@echo "# Secure storage dir" >> $(GEN_ROOTFS_FILELIST)
 	@echo "dir /data 755 0 0" >> $(GEN_ROOTFS_FILELIST)
 	@echo "dir /data/tee 755 0 0" >> $(GEN_ROOTFS_FILELIST)
 	@echo "dir /data/tee 755 0 0" >> $(GEN_ROOTFS_FILELIST)
@@ -203,36 +213,77 @@ filelist-tee:
 	@echo "# OP-TEE Client" >> $(GEN_ROOTFS_FILELIST)
 	@echo "file /usr/include/tee_client_api.h $(OPTEE_CLIENT_EXPORT)/include/tee_client_api.h 755 0 0" >> $(GEN_ROOTFS_FILELIST)
 	@echo "file /usr/include/teec_trace.h $(OPTEE_CLIENT_EXPORT)/include/teec_trace.h 755 0 0" >> $(GEN_ROOTFS_FILELIST)
-	@echo "file /usr/bin/tee-supplicant $(OPTEE_CLIENT_EXPORT)/bin/tee-supplicant 755 0 0" >> $(GEN_ROOTFS_FILELIST)
-	@echo "file /usr/lib/libteec.so.1.0 $(OPTEE_CLIENT_EXPORT)/lib/libteec.so.1.0 755 0 0" >> $(GEN_ROOTFS_FILELIST)
-	@echo "slink /usr/lib/libteec.so.1 libteec.so.1.0 755 0 0" >> $(GEN_ROOTFS_FILELIST)
-	@echo "slink /usr/lib/libteec.so libteec.so.1 755 0 0" >> $(GEN_ROOTFS_FILELIST)
-	@echo "file /boot/u-boot-jtag.bin $(U-BOOT_JTAG_BIN) 755 0 0" >> $(GEN_ROOTFS_FILELIST)
-	@echo "file /boot/optee.bin $(ARM_TF_BOOT) 755 0 0" >> $(GEN_ROOTFS_FILELIST)
-	@echo "file /boot/Image $(LINUX_IMAGE) 755 0 0" >> $(GEN_ROOTFS_FILELIST)
+	@echo "file /bin/tee-supplicant $(OPTEE_CLIENT_EXPORT)/bin/tee-supplicant 755 0 0" >> $(GEN_ROOTFS_FILELIST)
+	@echo "file /lib/libteec.so.1.0 $(OPTEE_CLIENT_EXPORT)/lib/libteec.so.1.0 755 0 0" >> $(GEN_ROOTFS_FILELIST)
+	@echo "slink /lib/libteec.so.1 libteec.so.1.0 755 0 0" >> $(GEN_ROOTFS_FILELIST)
+	@echo "slink /lib/libteec.so libteec.so.1 755 0 0" >> $(GEN_ROOTFS_FILELIST)
+	@echo "dir /boot 755 0 0" >> $(GEN_ROOTFS_FILELIST)
 	@echo "file /boot/bcm2837-rpi-3-b.dtb $(LINUX_DTB) 755 0 0" >> $(GEN_ROOTFS_FILELIST)
 	@echo "file /boot/config.txt $(RPI3_BOOT_CONFIG) 755 0 0" >> $(GEN_ROOTFS_FILELIST)
+	@echo "file /boot/Image $(LINUX_IMAGE) 755 0 0" >> $(GEN_ROOTFS_FILELIST)
+	@echo "file /boot/optee.bin $(ARM_TF_BOOT) 755 0 0" >> $(GEN_ROOTFS_FILELIST)
 	@echo "file /boot/uboot.env $(RPI3_UBOOT_ENV) 755 0 0" >> $(GEN_ROOTFS_FILELIST)
-	@echo "dir  /lib/modules/$(call KERNEL_VERSION) 755 0 0" >> $(GEN_ROOTFS_FILELIST)
+	@echo "file /boot/u-boot-jtag.bin $(U-BOOT_JTAG_BIN) 755 0 0" >> $(GEN_ROOTFS_FILELIST)
+	@cd $(MODULE_OUTPUT) && find -type d | sed 's/\.\(.*\)/dir \1 755 0 0/g' >> $(GEN_ROOTFS_FILELIST)
+	@cd $(MODULE_OUTPUT) && find -type f | sed "s|\.\(.*\)|file \1 $(MODULE_OUTPUT)\1 755 0 0|g" >> $(GEN_ROOTFS_FILELIST)
+	@echo "file /boot/bootcode.bin $(RPI3_STOCK_FW_PATH)/boot/bootcode.bin 755 0 0" >> $(GEN_ROOTFS_FILELIST)
+	@echo "file /boot/COPYING.linux $(RPI3_STOCK_FW_PATH)/boot/COPYING.linux 755 0 0" >> $(GEN_ROOTFS_FILELIST)
+	@echo "file /boot/fixup_cd.dat $(RPI3_STOCK_FW_PATH)/boot/fixup_cd.dat 755 0 0" >> $(GEN_ROOTFS_FILELIST)
+	@echo "file /boot/fixup.dat $(RPI3_STOCK_FW_PATH)/boot/fixup.dat 755 0 0" >> $(GEN_ROOTFS_FILELIST)
+	@echo "file /boot/fixup_db.dat $(RPI3_STOCK_FW_PATH)/boot/fixup_db.dat 755 0 0" >> $(GEN_ROOTFS_FILELIST)
+	@echo "file /boot/fixup_x.dat $(RPI3_STOCK_FW_PATH)/boot/fixup_x.dat 755 0 0" >> $(GEN_ROOTFS_FILELIST)
+	@echo "file /boot/LICENCE.broadcom $(RPI3_STOCK_FW_PATH)/boot/LICENCE.broadcom 755 0 0" >> $(GEN_ROOTFS_FILELIST)
+	@echo "file /boot/start_cd.elf $(RPI3_STOCK_FW_PATH)/boot/start_cd.elf 755 0 0" >> $(GEN_ROOTFS_FILELIST)
+	@echo "file /boot/start_db.elf $(RPI3_STOCK_FW_PATH)/boot/start_db.elf 755 0 0" >> $(GEN_ROOTFS_FILELIST)
+	@echo "file /boot/start.elf $(RPI3_STOCK_FW_PATH)/boot/start.elf 755 0 0" >> $(GEN_ROOTFS_FILELIST)
+	@echo "file /boot/start_x.elf $(RPI3_STOCK_FW_PATH)/boot/start_x.elf 755 0 0" >> $(GEN_ROOTFS_FILELIST)
+	@echo "file /etc/init.d/optee $(RPI3_OPTEE_INIT) 755 0 0" >> $(GEN_ROOTFS_FILELIST)
 
 .PHONY: update_rootfs
-update_rootfs:	arm-tf u-boot optee-client xtest filelist-tee
+update_rootfs:	arm-tf busybox u-boot optee-client xtest filelist-tee
 	cat $(GEN_ROOTFS_PATH)/filelist-final.txt $(GEN_ROOTFS_PATH)/filelist-tee.txt > $(GEN_ROOTFS_PATH)/filelist.tmp
 	cd $(GEN_ROOTFS_PATH) && \
 	        $(LINUX_PATH)/usr/gen_init_cpio $(GEN_ROOTFS_PATH)/filelist.tmp | gzip > $(GEN_ROOTFS_PATH)/filesystem.cpio.gz
-	cd $(GEN_ROOTFS_PATH) && mkdir -p rootfs_overlay
-	cd $(GEN_ROOTFS_PATH)/rootfs_overlay && gzip -d -c < $(GEN_ROOTFS_PATH)/filesystem.cpio.gz | cpio --extract --make-directories --no-preserve-owner
-	mkdir -p $(MODULE_OUTPUT)
-	mkdir -p $(MODULE_OUTPUT)/lib
-	mkdir -p $(GEN_ROOTFS_PATH)/rootfs_overlay/etc/init.d
-	cp $(RPI3_OPTEE_INIT) $(GEN_ROOTFS_PATH)/rootfs_overlay/etc/init.d/
-	$(MAKE) -C $(LINUX_PATH) $(LINUX_COMMON_FLAGS) INSTALL_MOD_PATH=$(MODULE_OUTPUT) modules_install
-	cd $(MODULE_OUTPUT)/lib && tar cf - firmware modules/$(call KERNEL_VERSION) | \
-           (cd $(GEN_ROOTFS_PATH)/rootfs_overlay/lib ; tar xf -)
-	cd $(RPI3_STOCK_FW_PATH) && tar cf - boot | (cd $(GEN_ROOTFS_PATH)/rootfs_overlay ; tar xf -)
-	(rm -f $(GEN_ROOTFS_PATH)/rootfs_overlay/boot/kernel7.img > /dev/null 2>&1 || echo > /dev/null)
-	(rm -f $(GEN_ROOTFS_PATH)/rootfs_overlay/boot/kernel.img > /dev/null 2>&1 || echo > /dev/null)
-	(rm -f $(GEN_ROOTFS_PATH)/rootfs_overlay/boot/*.dtb > /dev/null 2>&1 || echo > /dev/null)
-	cp $(LINUX_DTB) $(GEN_ROOTFS_PATH)/rootfs_overlay/boot
-	cd $(GEN_ROOTFS_PATH)/rootfs_overlay && tar zcf $(RPI3_OPTEE_ROOTFS) .
-	cd $(GEN_ROOTFS_PATH) && rm -rf rootfs_overlay
+
+# Creating images etc, could wipe out a drive on the system, therefore we don't
+# want to automate that in script or make target. Instead we just simply provide
+# the steps here.
+.PHONY: img-help
+img-help:
+	@echo "$$ fdisk /dev/sdx   # where sdx is the name of your sd-card"
+	@echo "   > p             # prints partition table"
+	@echo "   > d             # repeat until all partitions are deleted"
+	@echo "   > n             # create a new partition"
+	@echo "   > p             # create primary"
+	@echo "   > 1             # make it the first partition"
+	@echo "   > <enter>       # use the default sector"
+	@echo "   > +32M          # create a boot partition with 32MB of space"
+	@echo "   > n             # create rootfs partition"
+	@echo "   > p"
+	@echo "   > 2"
+	@echo "   > <enter>"
+	@echo "   > <enter>       # fill the remaining disk, adjust size to fit your needs"
+	@echo "   > t             # change partition type"
+	@echo "   > 1             # select first partition"
+	@echo "   > e             # use type 'e' (FAT16)"
+	@echo "   > a             # make partition bootable"
+	@echo "   > 1             # select first partition"
+	@echo "   > p             # double check everything looks right"
+	@echo "   > w             # write partition table to disk."
+	@echo ""
+	@echo "run the following as root"
+	@echo "   $$ mkfs.vfat -F16 -n BOOT /dev/sdx1"
+	@echo "   $$ mkdir -p /media/boot"
+	@echo "   $$ mount /dev/sdx1 /media/boot"
+	@echo "   $$ cd /media"
+	@echo "   $$ gunzip -cd $(GEN_ROOTFS_PATH)/filesystem.cpio.gz | sudo cpio -idmv \"boot/*\""
+	@echo "   $$ umount boot"
+	@echo ""
+	@echo "run the following as root"
+	@echo "   $$ mkfs.ext4 -L rootfs /dev/sdx2"
+	@echo "   $$ mkdir -p /media/rootfs"
+	@echo "   $$ mount /dev/sdx2 /media/rootfs"
+	@echo "   $$ cd rootfs"
+	@echo "   $$ gunzip -cd $(GEN_ROOTFS_PATH)/filesystem.cpio.gz | sudo cpio -idmv"
+	@echo "   $$ rm -rf /media/rootfs/boot/*"
+	@echo "   $$ cd .. && umount rootfs"
