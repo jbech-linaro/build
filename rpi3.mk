@@ -15,7 +15,7 @@ RPI3_FIRMWARE_BASE_URL = https://github.com/raspberrypi/firmware/archive
 RPI3_FIRMWARE_FILE = 046effa13ebc4cc7601df4f06f4834bd0eebb0f8
 RPI3_FIRMWARE_FILE_EXT = zip
 
-UBUNTU_ROOTS_BASE_URL = https://releases.linaro.org/15.06/ubuntu/vivid-images/developer-arm64/
+UBUNTU_ROOTS_BASE_URL = https://releases.linaro.org/15.06/ubuntu/vivid-images/developer-arm64
 UBUNTU_ROOTS_FILE = linaro-vivid-developer-20150612-99.tar.gz
 
 -include common.mk
