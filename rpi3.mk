@@ -17,7 +17,7 @@ RPI3_FIRMWARE_BASE_URL = https://github.com/raspberrypi/firmware/archive
 RPI3_FIRMWARE_FILE = 046effa13ebc4cc7601df4f06f4834bd0eebb0f8
 RPI3_FIRMWARE_FILE_EXT = zip
 
-UBUNTU_ROOTS_BASE_URL = https://releases.linaro.org/15.06/ubuntu/vivid-images/developer-arm64/
+UBUNTU_ROOTS_BASE_URL = https://releases.linaro.org/15.06/ubuntu/vivid-images/developer-arm64
 UBUNTU_ROOTS_FILE = linaro-vivid-developer-20150612-99.tar.gz
 
 -include common.mk
@@ -61,10 +61,10 @@ MODULE_OUTPUT		?= $(ROOT)/module_output
 ################################################################################
 # Targets
 ################################################################################
-all: arm-tf optee-os optee-client xtest u-boot linux update_rootfs
+all: rpi3-firmware ubuntu-rootfs arm-tf optee-os optee-client xtest u-boot \
+	linux update_rootfs
 all-clean: arm-tf-clean busybox-clean u-boot-clean optee-os-clean \
-	optee-client-clean
-
+	optee-client-clean rpi3-firmware-clean ubuntu-rootfs-clean
 
 -include toolchain.mk
 
@@ -258,7 +258,7 @@ filelist-tee:
 	@echo "file /etc/init.d/optee $(RPI3_OPTEE_INIT) 755 0 0" >> $(GEN_ROOTFS_FILELIST)
 
 .PHONY: update_rootfs
-update_rootfs:	arm-tf busybox u-boot optee-client xtest filelist-tee
+update_rootfs: arm-tf busybox u-boot optee-client xtest filelist-tee linux
 	cat $(GEN_ROOTFS_PATH)/filelist-final.txt $(GEN_ROOTFS_PATH)/filelist-tee.txt > $(GEN_ROOTFS_PATH)/filelist.tmp
 	cd $(GEN_ROOTFS_PATH) && \
 	        $(LINUX_PATH)/usr/gen_init_cpio $(GEN_ROOTFS_PATH)/filelist.tmp | gzip > $(GEN_ROOTFS_PATH)/filesystem.cpio.gz
