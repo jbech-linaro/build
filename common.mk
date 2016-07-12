@@ -5,6 +5,7 @@
 BASH ?= bash
 ROOT ?= $(shell pwd)/..
 
+BUILD_PATH			?= $(shell pwd)
 LINUX_PATH			?= $(ROOT)/linux
 OPTEE_GENDRV_MODULE		?= $(LINUX_PATH)/drivers/tee/optee/optee.ko
 GEN_ROOTFS_PATH			?= $(ROOT)/gen_rootfs
