@@ -11,9 +11,12 @@ override COMPILE_S_KERNEL  := 64
 # Firmware package to download, for convenience later on when unpacking etc,
 # we split it up in three different variables. Note that this should be updated
 # when newer firmware packages will be used.
-RPI3_FIRMWARE_URL = https://github.com/raspberrypi/firmware/archive
+RPI3_FIRMWARE_BASE_URL = https://github.com/raspberrypi/firmware/archive
 RPI3_FIRMWARE_FILE = 046effa13ebc4cc7601df4f06f4834bd0eebb0f8
 RPI3_FIRMWARE_FILE_EXT = zip
+
+UBUNTU_ROOTS_BASE_URL = https://releases.linaro.org/15.06/ubuntu/vivid-images/developer-arm64/
+UBUNTU_ROOTS_FILE = linaro-vivid-developer-20150612-99.tar.gz
 
 -include common.mk
 
@@ -162,7 +165,7 @@ rpi3-firmware:
 ifeq ("$(wildcard $(ROOT)/out/$(RPI3_FIRMWARE_FILE).$(RPI3_FIRMWARE_FILE_EXT))","")
 	echo "Downloading Raspberry Pi 3 firmware ..."
 	mkdir -p $(ROOT)/out
-	wget $(RPI3_FIRMWARE_URL)/$(RPI3_FIRMWARE_FILE).$(RPI3_FIRMWARE_FILE_EXT) -O $(ROOT)/out/$(RPI3_FIRMWARE_FILE).$(RPI3_FIRMWARE_FILE_EXT)
+	wget $(RPI3_FIRMWARE_BASE_URL)/$(RPI3_FIRMWARE_FILE).$(RPI3_FIRMWARE_FILE_EXT) -O $(ROOT)/out/$(RPI3_FIRMWARE_FILE).$(RPI3_FIRMWARE_FILE_EXT)
 	unzip -a $(ROOT)/out/$(RPI3_FIRMWARE_FILE).$(RPI3_FIRMWARE_FILE_EXT) -d $(ROOT)
 	mv $(ROOT)/firmware-$(RPI3_FIRMWARE_FILE) $(RPI3_STOCK_FW_PATH)
 endif
@@ -170,6 +173,21 @@ endif
 .PHONY: rpi3-firmware-clean
 rpi3-firmware-clean:
 	rm -f $(ROOT)/out/$(RPI3_FIRMWARE_FILE).$(RPI3_FIRMWARE_FILE_EXT)
+
+################################################################################
+# Ubuntu ROOTFS
+################################################################################
+.PHONY: ubuntu-rootfs
+ubuntu-rootfs:
+ifeq ("$(wildcard $(ROOT)/out/$(UBUNTU_ROOTS_FILE))","")
+	echo "Downloading $(UBUNTU_ROOTS_FILE)..."
+	mkdir -p $(ROOT)/out
+	wget $(UBUNTU_ROOTS_BASE_URL)/$(UBUNTU_ROOTS_FILE) -O $(ROOT)/out/$(UBUNTU_ROOTS_FILE)
+endif
+
+.PHONY: ubuntu-rootfs-clean
+ubuntu-rootfs-clean:
+	rm -f $(ROOT)/out/$(UBUNTU_ROOTS_FILE)
 
 ################################################################################
 # xtest / optee_test
@@ -285,5 +303,6 @@ img-help:
 	@echo "   $$ mount /dev/sdx2 /media/rootfs"
 	@echo "   $$ cd rootfs"
 	@echo "   $$ gunzip -cd $(GEN_ROOTFS_PATH)/filesystem.cpio.gz | sudo cpio -idmv"
+	@echo "   $$ tar -xvf $(ROOT)/out/$(UBUNTU_ROOTS_FILE) -C /media/rootfs --strip-components=1"
 	@echo "   $$ rm -rf /media/rootfs/boot/*"
 	@echo "   $$ cd .. && umount rootfs"
