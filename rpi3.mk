@@ -116,8 +116,8 @@ u-boot-clean:
 ################################################################################
 # Busybox
 ################################################################################
-BUSYBOX_COMMON_TARGET = fvp
-BUSYBOX_CLEAN_COMMON_TARGET = fvp clean
+BUSYBOX_COMMON_TARGET = rpi3
+BUSYBOX_CLEAN_COMMON_TARGET = rpi3 clean
 
 busybox: busybox-common
 
