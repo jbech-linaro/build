@@ -224,7 +224,7 @@ filelist-tee:
 	@echo "file /boot/optee.bin $(ARM_TF_BOOT) 755 0 0" >> $(GEN_ROOTFS_FILELIST)
 	@echo "file /boot/uboot.env $(RPI3_UBOOT_ENV) 755 0 0" >> $(GEN_ROOTFS_FILELIST)
 	@echo "file /boot/u-boot-jtag.bin $(U-BOOT_JTAG_BIN) 755 0 0" >> $(GEN_ROOTFS_FILELIST)
-	@cd $(MODULE_OUTPUT) && find -type d | sed 's/\.\(.*\)/dir \1 755 0 0/g' >> $(GEN_ROOTFS_FILELIST)
+	@cd $(MODULE_OUTPUT) && find ! -path . -type d | sed 's/\.\(.*\)/dir \1 755 0 0/g' >> $(GEN_ROOTFS_FILELIST)
 	@cd $(MODULE_OUTPUT) && find -type f | sed "s|\.\(.*\)|file \1 $(MODULE_OUTPUT)\1 755 0 0|g" >> $(GEN_ROOTFS_FILELIST)
 	@echo "file /boot/bootcode.bin $(RPI3_STOCK_FW_PATH)/boot/bootcode.bin 755 0 0" >> $(GEN_ROOTFS_FILELIST)
 	@echo "file /boot/COPYING.linux $(RPI3_STOCK_FW_PATH)/boot/COPYING.linux 755 0 0" >> $(GEN_ROOTFS_FILELIST)
