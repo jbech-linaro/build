@@ -46,6 +46,8 @@ RPI3_BOOT_CONFIG	?= $(RPI3_FIRMWARE_PATH)/config.txt
 RPI3_UBOOT_ENV		?= $(RPI3_FIRMWARE_PATH)/uboot.env
 RPI3_STOCK_FW_PATH	?= $(ROOT)/rpi3_firmware
 
+NFS 			?= /srv/nfs/debian-arm64
+
 OPTEE_OS_PAGER		?= $(OPTEE_OS_PATH)/out/arm/core/tee-pager.bin
 
 LINUX_IMAGE		?= $(LINUX_PATH)/arch/arm64/boot/Image
@@ -244,6 +246,19 @@ update_rootfs: arm-tf busybox u-boot optee-client xtest filelist-tee linux
 	cat $(GEN_ROOTFS_PATH)/filelist-final.txt $(GEN_ROOTFS_PATH)/filelist-tee.txt > $(GEN_ROOTFS_PATH)/filelist.tmp
 	cd $(GEN_ROOTFS_PATH) && \
 	        $(LINUX_PATH)/usr/gen_init_cpio $(GEN_ROOTFS_PATH)/filelist.tmp | gzip > $(GEN_ROOTFS_PATH)/filesystem.cpio.gz
+
+$(CURDIR)/copy.files:
+	@echo "Creating $(shell basename $@)"
+	@echo "mkdir -p $(NFS)/lib/optee_armtz" > copy.files
+	@find $(OPTEE_TEST_OUT_PATH) -name "*.ta" | \
+		sed "s|\(.*\)\/\(.*\)|/bin/cp \1\/\2 $(NFS)\/lib\/optee_armtz\/\2|g" > copy.files
+	@find $(OPTEE_TEST_OUT_PATH) -type f -name "xtest" | sed "s|\(.*\)|/bin/cp \1 $(NFS)/bin/|g" >> copy.files
+	@echo "/bin/cp $(OPTEE_CLIENT_EXPORT)/bin/tee-supplicant $(NFS)/bin/tee-supplicant" >> copy.files
+	@find $(OPTEE_CLIENT_EXPORT)/lib/ -type f -name "libteec.so*" | sed "s|\(.*\)|/bin/cp \1 $(NFS)/lib/|g" >> copy.files
+
+.PHONY: sync
+sync: $(CURDIR)/copy.files
+	bash $<
 
 # Creating images etc, could wipe out a drive on the system, therefore we don't
 # want to automate that in script or make target. Instead we just simply provide
