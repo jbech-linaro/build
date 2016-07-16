@@ -38,6 +38,8 @@ OPTEE_BIN		?= $(OPTEE_PATH)/out/arm/core/tee-header_v2.bin
 OPTEE_BIN_EXTRA1	?= $(OPTEE_PATH)/out/arm/core/tee-pager_v2.bin
 OPTEE_BIN_EXTRA2	?= $(OPTEE_PATH)/out/arm/core/tee-pageable_v2.bin
 
+NFS 			?= /mnt/sshd/srv/nfs/debian-arm64
+
 LINUX_IMAGE		?= $(LINUX_PATH)/arch/arm64/boot/Image
 LINUX_DTB_RPI3_B	?= $(LINUX_PATH)/arch/arm64/boot/dts/broadcom/bcm2710-rpi-3-b.dtb
 LINUX_DTB_RPI3_BPLUS	?= $(LINUX_PATH)/arch/arm64/boot/dts/broadcom/bcm2710-rpi-3-b-plus.dtb
@@ -170,6 +172,19 @@ update_rootfs: arm-tf linux u-boot
 	@install -v -p --mode=755 $(RPI3_STOCK_FW_PATH)/boot/start.elf $(BUILDROOT_TARGET_ROOT)/boot/start.elf
 	@install -v -p --mode=755 $(RPI3_STOCK_FW_PATH)/boot/start_x.elf $(BUILDROOT_TARGET_ROOT)/boot/start_x.elf
 	@cd $(MODULE_OUTPUT) && find . | cpio -pudm $(BUILDROOT_TARGET_ROOT)
+
+$(CURDIR)/copy.files:
+	@echo "Creating $(shell basename $@)"
+	@echo "mkdir -p $(NFS)/lib/optee_armtz" > copy.files
+	@find $(OPTEE_TEST_OUT_PATH) -name "*.ta" | \
+		sed "s|\(.*\)\/\(.*\)|/bin/cp \1\/\2 $(NFS)\/lib\/optee_armtz\/\2|g" > copy.files
+	@find $(OPTEE_TEST_OUT_PATH) -type f -name "xtest" | sed "s|\(.*\)|/bin/cp \1 $(NFS)/bin/|g" >> copy.files
+	@echo "/bin/cp $(OPTEE_CLIENT_EXPORT)/bin/tee-supplicant $(NFS)/bin/tee-supplicant" >> copy.files
+	@find $(OPTEE_CLIENT_EXPORT)/lib/ -type f -name "libteec.so*" | sed "s|\(.*\)|/bin/cp \1 $(NFS)/lib/|g" >> copy.files
+
+.PHONY: sync
+sync: $(CURDIR)/copy.files
+	bash $<
 
 # Creating images etc, could wipe out a drive on the system, therefore we don't
 # want to automate that in script or make target. Instead we just simply provide
