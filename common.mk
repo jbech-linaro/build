@@ -16,6 +16,7 @@ OPTEE_CLIENT_EXPORT		?= $(OPTEE_CLIENT_PATH)/out/export
 OPTEE_TEST_PATH			?= $(ROOT)/optee_test
 OPTEE_TEST_OUT_PATH 		?= $(ROOT)/optee_test/out
 HELLOWORLD_PATH			?= $(ROOT)/hello_world
+GP_CONF_TA_PATH			?= $(ROOT)/gp_conf
 
 CFG_TEE_CORE_LOG_LEVEL		?= 3
 
@@ -249,3 +250,19 @@ HELLOWORLD_CLEAN_COMMON_FLAGS ?= TA_DEV_KIT_DIR=$(OPTEE_OS_TA_DEV_KIT_DIR)
 
 helloworld-clean-common:
 	$(MAKE) -C $(HELLOWORLD_PATH) $(HELLOWORLD_CLEAN_COMMON_FLAGS) clean
+
+################################################################################
+# GP conf TA 2016
+################################################################################
+GP_TA_CONF_COMMON_FLAGS ?= HOST_CROSS_COMPILE=$(CROSS_COMPILE_NS_USER)\
+	TA_CROSS_COMPILE=$(CROSS_COMPILE_S_USER) \
+	TA_DEV_KIT_DIR=$(OPTEE_OS_TA_DEV_KIT_DIR) \
+	TEEC_EXPORT=$(OPTEE_CLIENT_EXPORT)
+
+gp-ta-conf-common: optee-os optee-client
+	$(MAKE) -C $(GP_CONF_TA_PATH) $(GP_TA_CONF_COMMON_FLAGS)
+
+GP_TA_CONF_CLEAN_COMMON_FLAGS ?= TA_DEV_KIT_DIR=$(OPTEE_OS_TA_DEV_KIT_DIR)
+
+gp-ta-conf-clean-common:
+	$(MAKE) -C $(GP_CONF_TA_PATH) $(GP_TA_CONF_CLEAN_COMMON_FLAGS) clean

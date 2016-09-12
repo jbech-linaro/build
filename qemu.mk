@@ -130,18 +130,27 @@ helloworld: helloworld-common
 helloworld-clean: helloworld-clean-common
 
 ################################################################################
+# GP TA conf 2016
+################################################################################
+gp_conf_ta: gp-ta-conf-common
+
+gp_conf_ta-clean: gp-ta-conf-clean-common
+
+################################################################################
 # Root FS
 ################################################################################
 .PHONY: filelist-tee
-filelist-tee: xtest helloworld
+filelist-tee: xtest helloworld gp_conf_ta
 	@echo "# xtest / optee_test" > $(GEN_ROOTFS_FILELIST)
 	@find $(OPTEE_TEST_OUT_PATH) -type f -name "xtest" | sed 's/\(.*\)/file \/bin\/xtest \1 755 0 0/g' >> $(GEN_ROOTFS_FILELIST)
 	@echo "file /bin/hello_world $(HELLOWORLD_PATH)/host/hello_world 755 0 0" >> $(GEN_ROOTFS_FILELIST)
+	@echo "file /bin/gp_conf_client $(GP_CONF_TA_PATH)/host/gp_conf_client 755 0 0" >> $(GEN_ROOTFS_FILELIST)
 	@echo "# TAs" >> $(GEN_ROOTFS_FILELIST)
 	@echo "dir /lib/optee_armtz 755 0 0" >> $(GEN_ROOTFS_FILELIST)
 	@find $(OPTEE_TEST_OUT_PATH) -name "*.ta" | \
 		sed 's/\(.*\)\/\(.*\)/file \/lib\/optee_armtz\/\2 \1\/\2 444 0 0/g' >> $(GEN_ROOTFS_FILELIST)
 	@echo "file /lib/optee_armtz/8aaaf200-2450-11e4-abe20002a5d5c51b.ta $(HELLOWORLD_PATH)/ta/8aaaf200-2450-11e4-abe20002a5d5c51b.ta 444 0 0" >> $(GEN_ROOTFS_FILELIST)
+	@echo "file /lib/optee_armtz/67707465-6563-6f6e-666c696e61726f15.ta $(GP_CONF_TA_PATH)/ta/67707465-6563-6f6e-666c696e61726f15.ta 444 0 0" >> $(GEN_ROOTFS_FILELIST)
 	@echo "# Secure storage dir" >> $(GEN_ROOTFS_FILELIST)
 	@echo "dir /data 755 0 0" >> $(GEN_ROOTFS_FILELIST)
 	@echo "dir /data/tee 755 0 0" >> $(GEN_ROOTFS_FILELIST)
