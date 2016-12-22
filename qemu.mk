@@ -15,6 +15,7 @@ override COMPILE_S_KERNEL  := 32
 ################################################################################
 BIOS_QEMU_PATH			?= $(ROOT)/bios_qemu_tz_arm
 QEMU_PATH			?= $(ROOT)/qemu
+TRASHER_PATH			?= $(ROOT)/trasher
 
 SOC_TERM_PATH			?= $(ROOT)/soc_term
 
@@ -23,7 +24,7 @@ DEBUG = 1
 ################################################################################
 # Targets
 ################################################################################
-all: bios-qemu qemu soc-term
+all: bios-qemu qemu soc-term trasher
 all-clean: bios-qemu-clean busybox-clean linux-clean optee-os-clean \
 	optee-client-clean qemu-clean soc-term-clean check-clean
 
@@ -131,9 +132,20 @@ helloworld: helloworld-common
 helloworld-clean: helloworld-clean-common
 
 ################################################################################
+# trasher
+################################################################################
+trasher:
+	$(MAKE) -C $(TRASHER_PATH) $(HELLOWORLD_COMMON_FLAGS)
+
+trasher-clean:
+	$(MAKE) -C $(TRASHER_PATH) $(HELLOWORLD_CLEAN_COMMON_FLAGS) clean
+
+################################################################################
 # Root FS
 ################################################################################
 filelist-tee: filelist-tee-common
+	echo "file /bin/trasher $(TRASHER_PATH)/host/trasher 755 0 0" >> $(GEN_ROOTFS_FILELIST)
+	echo "file /lib/optee_armtz/11111111-2222-3333-4455-66778899aabb.ta $(TRASHER_PATH)/ta/11111111-2222-3333-4455-66778899aabb.ta 444 0 0" >> $(GEN_ROOTFS_FILELIST)
 
 update_rootfs: update_rootfs-common
 
