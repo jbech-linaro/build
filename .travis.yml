@@ -1,0 +1,61 @@
+# Travis configuration file for downloading and building OP-TEE according to the
+# instructions in build.git
+# Author: Joakim Bech
+language: bash
+
+notifications:
+  - email: true
+
+dist: trusty
+sudo: required
+group: beta
+
+cache:
+  ccache: true
+  directories:
+    - $HOME/reference
+
+git:
+  depth: 1
+
+addons:
+  apt:
+    packages:
+    - android-tools-adb
+    - libc6
+    - libstdc++6
+    - libz1
+
+before_cache:
+        - ccache -s
+
+after_success:
+        - ccache -s
+
+after_failure:
+        - ccache -s
+
+before_install:
+  - sudo dpkg --add-architecture i386
+  - sudo apt-get update -qq
+  - sudo apt-get install -qq -y android-tools-adb android-tools-fastboot autoconf  automake bc bison build-essential cscope curl flex ftp-upload gdisk  libattr1-dev libc6:i386 libcap-dev libfdt-dev libftdi-dev  libglib2.0-dev libhidapi-dev libncurses5-dev libpixman-1-dev  libssl-dev libstdc++6:i386 libtool libz1:i386 make mtools netcat  python-crypto python-serial python-wand unzip uuid-dev xdg-utils  xterm xz-utils zlib1g-dev
+
+before_script:
+        - mkdir $HOME/bin
+        - (cd $HOME/bin && wget https://storage.googleapis.com/git-repo-downloads/repo && chmod +x repo)
+        - export PATH=$HOME/bin:$PATH
+        - (cd $HOME/reference && repo init -u https://github.com/OP-TEE/manifest.git -m default.xml </dev/null && repo sync -j2 --no-clone-bundle --no-tags --quiet -j 2)
+        - (cd $HOME/reference/build && make toolchains)
+        # Build QEMU
+        - mkdir $HOME/optee
+        - (cd $HOME/optee && repo init -u https://github.com/OP-TEE/manifest.git -m default.xml --reference $HOME/reference </dev/null && repo sync -j2 --no-clone-bundle --no-tags --quiet -j 2)
+        - (cd $HOME/optee && ln -s $HOME/reference/toolchains .)
+        - (cd $HOME/optee/build && make all -j4)
+        # Build FVP
+        #- rm -rf $HOME/optee
+        #- mkdir $HOME/optee
+        #- (cd $HOME/optee && repo init -u https://github.com/OP-TEE/manifest.git -m fvp.xml --reference $HOME/reference </dev/null && repo sync -j2 --no-clone-bundle --no-tags --quiet -j 2)
+        #- (cd $HOME/optee && ln -s $HOME/reference/toolchains .)
+        #- mkdir -p $HOME/optee/Foundation_Platformpkg
+        #- (cd $HOME/optee/build && make all -j4)
+        - echo Done

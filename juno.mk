@@ -23,7 +23,7 @@ U-BOOT_BIN		?= $(U-BOOT_PATH)/u-boot.bin
 ################################################################################
 # Targets
 ################################################################################
-all: arm-tf u-boot linux optee-os optee-client xtest update_rootfs
+all: arm-tf u-boot linux optee-os optee-client xtest helloworld update_rootfs
 all-clean: arm-tf-clean busybox-clean u-boot-clean optee-os-clean \
 	optee-client-clean
 
@@ -35,7 +35,7 @@ all-clean: arm-tf-clean busybox-clean u-boot-clean optee-os-clean \
 ################################################################################
 ARM_TF_EXPORTS ?= \
 	CFLAGS="-O0 -gdwarf-2" \
-	CROSS_COMPILE="$(CCACHE)$(AARCH64_NONE_CROSS_COMPILE)"
+	CROSS_COMPILE="$(CCACHE)$(AARCH64_CROSS_COMPILE)"
 
 ARM_TF_FLAGS ?= \
 	SCP_BL2=$(ROOT)/vexpress-firmware/SOFTWARE/bl30.bin \
@@ -129,37 +129,20 @@ xtest-clean: xtest-clean-common
 xtest-patch: xtest-patch-common
 
 ################################################################################
+# hello_world
+################################################################################
+helloworld: helloworld-common
+
+helloworld-clean: helloworld-clean-common
+
+################################################################################
 # Root FS
 ################################################################################
-.PHONY: filelist-tee
-filelist-tee:
-	@echo "# xtest / optee_test" > $(GEN_ROOTFS_FILELIST)
-	@find $(OPTEE_TEST_OUT_PATH) -type f -name "xtest" | sed 's/\(.*\)/file \/bin\/xtest \1 755 0 0/g' >> $(GEN_ROOTFS_FILELIST)
-	@echo "# TAs" >> $(GEN_ROOTFS_FILELIST)
-	@echo "dir /lib/optee_armtz 755 0 0" >> $(GEN_ROOTFS_FILELIST)
-	@find $(OPTEE_TEST_OUT_PATH) -name "*.ta" | \
-		sed 's/\(.*\)\/\(.*\)/file \/lib\/optee_armtz\/\2 \1\/\2 444 0 0/g' >> $(GEN_ROOTFS_FILELIST)
-	@echo "# Secure storage dig" >> $(GEN_ROOTFS_FILELIST)
-	@echo "dir /data 755 0 0" >> $(GEN_ROOTFS_FILELIST)
-	@echo "dir /data/tee 755 0 0" >> $(GEN_ROOTFS_FILELIST)
-	@if [ -e $(OPTEE_GENDRV_MODULE) ]; then
-		@echo "# OP-TEE device" >> $(GEN_ROOTFS_FILELIST)
-		@echo "dir /lib/modules 755 0 0" >> $(GEN_ROOTFS_FILELIST)
-		@echo "dir /lib/modules/$(call KERNEL_VERSION) 755 0 0" >> $(GEN_ROOTFS_FILELIST)
-		@echo "file /lib/modules/$(call KERNEL_VERSION)/optee.ko $(OPTEE_GENDRV_MODULE) 755 0 0" >> $(GEN_ROOTFS_FILELIST)
-	@fi
-	@echo "# OP-TEE Client" >> $(GEN_ROOTFS_FILELIST)
-	@echo "file /bin/tee-supplicant $(OPTEE_CLIENT_EXPORT)/bin/tee-supplicant 755 0 0" >> $(GEN_ROOTFS_FILELIST)
-	@echo "dir /lib/aarch64-linux-gnu 755 0 0" >> $(GEN_ROOTFS_FILELIST)
-	@echo "file /lib/aarch64-linux-gnu/libteec.so.1.0 $(OPTEE_CLIENT_EXPORT)/lib/libteec.so.1.0 755 0 0" >> $(GEN_ROOTFS_FILELIST)
-	@echo "slink /lib/aarch64-linux-gnu/libteec.so.1 libteec.so.1.0 755 0 0" >> $(GEN_ROOTFS_FILELIST)
-	@echo "slink /lib/aarch64-linux-gnu/libteec.so libteec.so.1 755 0 0" >> $(GEN_ROOTFS_FILELIST)
+filelist-tee: filelist-tee-common
 
 .PHONY: update_rootfs
-update_rootfs: u-boot busybox optee-client xtest filelist-tee
-	cat $(GEN_ROOTFS_PATH)/filelist-final.txt $(GEN_ROOTFS_PATH)/filelist-tee.txt > $(GEN_ROOTFS_PATH)/filelist.tmp
-	cd $(GEN_ROOTFS_PATH) && \
-	        $(LINUX_PATH)/usr/gen_init_cpio $(GEN_ROOTFS_PATH)/filelist.tmp | gzip > $(GEN_ROOTFS_PATH)/filesystem.cpio.gz
+update_rootfs: u-boot
+update_rootfs: update_rootfs-common
 	$(U-BOOT_PATH)/tools/mkimage -A arm64 -O linux -T ramdisk -C gzip \
 		-d $(GEN_ROOTFS_PATH)/filesystem.cpio.gz \
 		$(GEN_ROOTFS_PATH)/ramdisk.img

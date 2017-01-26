@@ -14,17 +14,20 @@ COMPILE_S_KERNEL  ?= 64
 CFG_NW_CONSOLE_UART ?= 3
 CFG_SW_CONSOLE_UART ?= 3
 
+# eMMC flash size: 8 or 4 GB [default 8]
+CFG_FLASH_SIZE ?= 8
+
 # TODO: Figure out how to handle this in a better way, but we need a version
 # number with major and minor for the debian packages.
 #   <major version>.<minor version>-<package revision>
-OPTEE_PKG_VERSION ?= 2.0-1
+OPTEE_PKG_VERSION ?= 2.3-0
 
 # IP-address to the HiKey device
 IP ?= 127.0.0.1
 
 # URL to images
 SYSTEM_IMG_URL=https://builds.96boards.org/releases/reference-platform/debian/hikey/16.03/hikey-rootfs-debian-jessie-alip-20160301-68.emmc.img.gz
-BOOT_IMG_URL=https://builds.96boards.org/releases/reference-platform/debian/hikey/16.03/hikey-boot-linux-20160301-68.uefi.img.gz
+BOOT_IMG_URL=https://builds.96boards.org/releases/reference-platform/debian/hikey/16.06/hikey-boot-linux-20160629-120.uefi.img.gz
 NVME_IMG_URL=https://builds.96boards.org/releases/hikey/linaro/binaries/latest/nvme.img
 
 ################################################################################
@@ -68,8 +71,6 @@ SYSTEM_IMG			?= $(OUT_PATH)/debian_system.img
 ROOTFS_PATH			?= $(OUT_PATH)/rootfs
 LLOADER_PATH			?= $(ROOT)/l-loader
 PATCHES_PATH			?= $(ROOT)/patches_hikey
-AESPERF_PATH			?= $(ROOT)/aes-perf
-SHAPERF_PATH			?= $(ROOT)/sha-perf
 DEBPKG_PATH			?= $(OUT_PATH)/optee_$(OPTEE_PKG_VERSION)
 DEBPKG_BIN_PATH			?= $(DEBPKG_PATH)/usr/bin
 DEBPKG_LIB_PATH			?= $(DEBPKG_PATH)/usr/lib/$(MULTIARCH)
@@ -81,7 +82,7 @@ DEBPKG_CONTROL_PATH		?= $(DEBPKG_PATH)/DEBIAN
 ################################################################################
 all: prepare arm-tf linux boot-img lloader system-img nvme deb
 
-clean: arm-tf-clean edk2-clean linux-clean optee-os-clean optee-client-clean xtest-clean boot-img-clean lloader-clean aes-perf-clean sha-perf-clean
+clean: arm-tf-clean edk2-clean linux-clean optee-os-clean optee-client-clean xtest-clean helloworld-clean boot-img-clean lloader-clean
 
 cleaner: clean prepare-cleaner linux-cleaner nvme-cleaner system-img-cleaner
 
@@ -136,7 +137,7 @@ ifeq ($(EDK2_CONSOLE_UART),0)
 endif
 
 define edk2-call
-	GCC49_AARCH64_PREFIX=$(AARCH64_CROSS_COMPILE) \
+	GCC49_AARCH64_PREFIX=$(LEGACY_AARCH64_CROSS_COMPILE) \
 	$(MAKE) -j1 -C $(EDK2_PATH) \
 		-f HisiPkg/HiKeyPkg/Makefile $(EDK2_VARS)
 endef
@@ -151,7 +152,6 @@ edk2-clean: edk2-clean-common
 ################################################################################
 LINUX_DEFCONFIG_COMMON_ARCH ?= arm64
 LINUX_DEFCONFIG_COMMON_FILES ?= $(LINUX_PATH)/arch/arm64/configs/defconfig \
-				$(LINUX_PATH)/arch/arm64/configs/distro.config \
 				$(CURDIR)/kconfigs/hikey_debian.conf
 
 linux-defconfig: $(LINUX_PATH)/.config
@@ -184,7 +184,7 @@ linux-cleaner: linux-cleaner-common
 ################################################################################
 # OP-TEE
 ################################################################################
-OPTEE_OS_COMMON_FLAGS += PLATFORM=hikey CFG_TEE_TA_LOG_LEVEL=3 CFG_CONSOLE_UART=$(CFG_SW_CONSOLE_UART)
+OPTEE_OS_COMMON_FLAGS += PLATFORM=hikey CFG_CONSOLE_UART=$(CFG_SW_CONSOLE_UART)
 OPTEE_OS_CLEAN_COMMON_FLAGS += PLATFORM=hikey
 
 optee-os: optee-os-common
@@ -213,28 +213,11 @@ xtest-clean: xtest-clean-common
 xtest-patch: xtest-patch-common
 
 ################################################################################
-# aes-pef
+# hello_world
 ################################################################################
-PERF_FLAGS := CROSS_COMPILE_HOST=$(CROSS_COMPILE_NS_USER) \
-	CROSS_COMPILE_TA=$(CROSS_COMPILE_S_USER) \
-	TA_DEV_KIT_DIR=$(OPTEE_OS_TA_DEV_KIT_DIR)
+helloworld: helloworld-common
 
-aes-perf: optee-os optee-client
-	$(MAKE) -C -j$(NPROC) $(AESPERF_PATH) $(PERF_FLAGS)
-
-.PHONY: aes-perf-clean
-aes-perf-clean:
-	rm -rf $(AESPERF_PATH)/out
-
-################################################################################
-# sha-perf
-################################################################################
-sha-perf: optee-os optee-client
-	$(MAKE) -C -j$(NPROC) $(SHAPERF_PATH) $(PERF_FLAGS)
-
-.PHONY: sha-perf-clean
-sha-perf-clean:
-	rm -rf $(SHAPERF_PATH)/out
+helloworld-clean: helloworld-clean-common
 
 ################################################################################
 # Boot Image
@@ -270,7 +253,7 @@ system-img-cleaner:
 # l-loader
 ################################################################################
 lloader: arm-tf
-	$(MAKE) -C $(LLOADER_PATH) BL1=$(ARM_TF_PATH)/build/hikey/$(ARM_TF_BUILD)/bl1.bin CROSS_COMPILE="$(CCACHE)$(AARCH32_CROSS_COMPILE)" PTABLE_LST=linux-4g
+	$(MAKE) -C $(LLOADER_PATH) BL1=$(ARM_TF_PATH)/build/hikey/$(ARM_TF_BUILD)/bl1.bin CROSS_COMPILE="$(CCACHE)$(AARCH32_CROSS_COMPILE)" PTABLE_LST=linux-$(CFG_FLASH_SIZE)g
 
 .PHONY: lloader-clean
 lloader-clean:
@@ -301,7 +284,7 @@ Architecture: arm64
 Depends:
 Maintainer: Joakim Bech <joakim.bech@linaro.org>
 Description: OP-TEE client binaries, test program and Trusted Applications
- Package contains tee-supplicant, libtee.so, xtest and a set of
+ Package contains tee-supplicant, libtee.so, xtest, hello_world and a set of
  Trusted Applications.
  NOTE! This package should only be used for testing and development.
 endef
@@ -309,15 +292,17 @@ endef
 export CONTROL_TEXT
 
 .PHONY: deb
-deb: xtest optee-client
+deb: xtest helloworld optee-client
 	@mkdir -p $(DEBPKG_BIN_PATH) && cd $(DEBPKG_BIN_PATH) && \
 		cp -f $(OPTEE_CLIENT_EXPORT)/bin/tee-supplicant . && \
-		cp -f $(OPTEE_TEST_OUT_PATH)/xtest/xtest .
+		cp -f $(OPTEE_TEST_OUT_PATH)/xtest/xtest . && \
+		cp -f $(HELLOWORLD_PATH)/host/hello_world .
 
 	@mkdir -p $(DEBPKG_LIB_PATH) && cd $(DEBPKG_LIB_PATH) && \
 		cp $(OPTEE_CLIENT_EXPORT)/lib/libtee* .
 
 	@mkdir -p $(DEBPKG_TA_PATH) && cd $(DEBPKG_TA_PATH) && \
+		cp $(HELLOWORLD_PATH)/ta/*.ta . && \
 		find $(OPTEE_TEST_OUT_PATH)/ta -name "*.ta" -exec cp {} . \;
 
 	@mkdir -p $(DEBPKG_CONTROL_PATH)
@@ -349,10 +334,16 @@ endef
 .PHONY: recovery
 recovery:
 	@echo "Enter recovery mode to flash a new bootloader"
+	@echo
+	@echo "Make sure udev permissions are set appropriately:"
+	@echo "  # /etc/udev/rules.d/hikey.rules"
+	@echo '  SUBSYSTEM=="usb", ATTRS{idVendor}=="18d1", ATTRS{idProduct}=="d00d", MODE="0666"'
+	@echo '  SUBSYSTEM=="usb", ATTRS{idVendor}=="12d1", MODE="0666", ENV{ID_MM_DEVICE_IGNORE}="1"'
+	@echo
 	@echo "Jumper 1-2: Closed (Auto power up = Boot up when power is applied)"
 	@echo "       3-4: Closed (Boot Select = Recovery: program eMMC from USB OTG)"
 	$(call flash_help)
-	sudo python $(ROOT)/burn-boot/hisi-idt.py --img1=$(LLOADER_PATH)/l-loader.bin
+	python $(ROOT)/burn-boot/hisi-idt.py --img1=$(LLOADER_PATH)/l-loader.bin
 	@$(MAKE) --no-print flash FROM_RECOVERY=1
 
 .PHONY: flash
@@ -367,7 +358,7 @@ ifneq ($(FROM_RECOVERY),1)
 	@echo "    \"Android Fastboot mode - version x.x Press any key to quit.\""
 	@read -r -p "   Then press any key to continue flashing" dummy
 endif
-	fastboot flash ptable $(LLOADER_PATH)/ptable-linux-4g.img
+	fastboot flash ptable $(LLOADER_PATH)/ptable-linux-$(CFG_FLASH_SIZE)g.img
 	fastboot flash fastboot $(ARM_TF_PATH)/build/hikey/$(ARM_TF_BUILD)/fip.bin
 	fastboot flash nvme $(NVME_IMG)
 	fastboot flash boot $(BOOT_IMG)

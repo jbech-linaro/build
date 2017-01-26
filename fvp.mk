@@ -27,7 +27,7 @@ endif
 ################################################################################
 # Targets
 ################################################################################
-all: arm-tf edk2 linux optee-os optee-client xtest
+all: arm-tf edk2 linux optee-os optee-client xtest helloworld
 all-clean: arm-tf-clean busybox-clean edk2-clean optee-os-clean \
 	optee-client-clean
 
@@ -39,7 +39,7 @@ all-clean: arm-tf-clean busybox-clean edk2-clean optee-os-clean \
 ################################################################################
 ARM_TF_EXPORTS ?= \
 	CFLAGS="-O0 -gdwarf-2" \
-	CROSS_COMPILE="$(CCACHE)$(AARCH64_NONE_CROSS_COMPILE)"
+	CROSS_COMPILE="$(CCACHE)$(AARCH64_CROSS_COMPILE)"
 
 ARM_TF_FLAGS ?= \
 	BL32=$(OPTEE_OS_BIN) \
@@ -71,7 +71,7 @@ busybox-cleaner: busybox-cleaner-common
 # EDK2 / Tianocore
 ################################################################################
 define edk2-call
-	GCC49_AARCH64_PREFIX=$(AARCH64_NONE_CROSS_COMPILE) \
+	GCC49_AARCH64_PREFIX=$(LEGACY_AARCH64_CROSS_COMPILE) \
 	     $(MAKE) -j1 -C $(EDK2_PATH) \
 	     -f ArmPlatformPkg/Scripts/Makefile EDK2_ARCH=AARCH64 \
 	     EDK2_DSC=ArmPlatformPkg/ArmVExpressPkg/ArmVExpress-FVP-AArch64.dsc \
@@ -130,43 +130,18 @@ xtest-clean: xtest-clean-common
 xtest-patch: xtest-patch-common
 
 ################################################################################
+# hello_world
+################################################################################
+helloworld: helloworld-common
+
+helloworld-clean: helloworld-clean-common
+
+################################################################################
 # Root FS
 ################################################################################
-ifeq ($(COMPILE_NS_USER),32)
-ROOTFS_LIBPATH	?= "/lib/arm-linux-gnueabihf"
-endif
-ifeq ($(COMPILE_NS_USER),64)
-ROOTFS_LIBPATH	?= "/lib/aarch64-linux-gnu"
-endif
+filelist-tee: filelist-tee-common
 
-.PHONY: filelist-tee
-filelist-tee:
-	@echo "# xtest / optee_test" > $(GEN_ROOTFS_FILELIST)
-	@find $(OPTEE_TEST_OUT_PATH) -type f -name "xtest" | sed 's/\(.*\)/file \/bin\/xtest \1 755 0 0/g' >> $(GEN_ROOTFS_FILELIST)
-	@echo "# TAs" >> $(GEN_ROOTFS_FILELIST)
-	@echo "dir /lib/optee_armtz 755 0 0" >> $(GEN_ROOTFS_FILELIST)
-	@find $(OPTEE_TEST_OUT_PATH) -name "*.ta" | \
-		sed 's/\(.*\)\/\(.*\)/file \/lib\/optee_armtz\/\2 \1\/\2 444 0 0/g' >> $(GEN_ROOTFS_FILELIST)
-	@echo "# Secure storage dig" >> $(GEN_ROOTFS_FILELIST)
-	@echo "dir /data 755 0 0" >> $(GEN_ROOTFS_FILELIST)
-	@echo "dir /data/tee 755 0 0" >> $(GEN_ROOTFS_FILELIST)
-	@if [ -e $(OPTEE_GENDRV_MODULE) ]; then
-		@echo "# OP-TEE device" >> $(GEN_ROOTFS_FILELIST)
-		@echo "dir /lib/modules 755 0 0" >> $(GEN_ROOTFS_FILELIST)
-		@echo "dir /lib/modules/$(call KERNEL_VERSION) 755 0 0" >> $(GEN_ROOTFS_FILELIST)
-		@echo "file /lib/modules/$(call KERNEL_VERSION)/optee.ko $(OPTEE_GENDRV_MODULE) 755 0 0" >> $(GEN_ROOTFS_FILELIST)
-	@fi
-	@echo "# OP-TEE Client" >> $(GEN_ROOTFS_FILELIST)
-	@echo "file /bin/tee-supplicant $(OPTEE_CLIENT_EXPORT)/bin/tee-supplicant 755 0 0" >> $(GEN_ROOTFS_FILELIST)
-	@echo "dir $(ROOTFS_LIBPATH) 755 0 0" >> $(GEN_ROOTFS_FILELIST)
-	@echo "file $(ROOTFS_LIBPATH)/libteec.so.1.0 $(OPTEE_CLIENT_EXPORT)/lib/libteec.so.1.0 755 0 0" >> $(GEN_ROOTFS_FILELIST)
-	@echo "slink $(ROOTFS_LIBPATH)/libteec.so.1 libteec.so.1.0 755 0 0" >> $(GEN_ROOTFS_FILELIST)
-	@echo "slink $(ROOTFS_LIBPATH)/libteec.so libteec.so.1 755 0 0" >> $(GEN_ROOTFS_FILELIST)
-
-update_rootfs: busybox optee-client xtest filelist-tee
-	cat $(GEN_ROOTFS_PATH)/filelist-final.txt $(GEN_ROOTFS_PATH)/filelist-tee.txt > $(GEN_ROOTFS_PATH)/filelist.tmp
-	cd $(GEN_ROOTFS_PATH); \
-	        $(LINUX_PATH)/usr/gen_init_cpio $(GEN_ROOTFS_PATH)/filelist.tmp | gzip > $(GEN_ROOTFS_PATH)/filesystem.cpio.gz
+update_rootfs: update_rootfs-common
 
 ################################################################################
 # Run targets

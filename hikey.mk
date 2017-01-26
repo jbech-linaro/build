@@ -12,6 +12,9 @@ COMPILE_S_KERNEL  ?= 64
 CFG_NW_CONSOLE_UART ?= 3
 CFG_SW_CONSOLE_UART ?= 3
 
+# eMMC flash size: 8 or 4 GB [default 8]
+CFG_FLASH_SIZE ?= 8
+
 ################################################################################
 # Includes
 ################################################################################
@@ -53,15 +56,13 @@ NVME_IMG			?=$(ROOT)/out/nvme.img
 OUT_PATH			?=$(ROOT)/out
 GRUB_PATH			?=$(ROOT)/grub
 PATCHES_PATH			?=$(ROOT)/patches_hikey
-AESPERF_PATH			?=$(ROOT)/aes-perf
-SHAPERF_PATH			?=$(ROOT)/sha-perf
 
 ################################################################################
 # Targets
 ################################################################################
-all: prepare arm-tf boot-img lloader nvme
+all: prepare arm-tf boot-img lloader nvme strace
 
-clean: arm-tf-clean busybox-clean edk2-clean linux-clean optee-os-clean optee-client-clean xtest-clean strace-clean update_rootfs-clean boot-img-clean lloader-clean aes-perf-clean sha-perf-clean grub-clean
+clean: arm-tf-clean busybox-clean edk2-clean linux-clean optee-os-clean optee-client-clean xtest-clean helloworld-clean strace-clean update_rootfs-clean boot-img-clean lloader-clean grub-clean
 
 cleaner: clean prepare-cleaner busybox-cleaner linux-cleaner strace-cleaner nvme-cleaner grub-cleaner
 
@@ -130,7 +131,7 @@ ifeq ($(EDK2_CONSOLE_UART),0)
 endif
 
 define edk2-call
-	GCC49_AARCH64_PREFIX=$(AARCH64_CROSS_COMPILE) \
+	GCC49_AARCH64_PREFIX=$(LEGACY_AARCH64_CROSS_COMPILE) \
 	$(MAKE) -j1 -C $(EDK2_PATH) \
 		-f HisiPkg/HiKeyPkg/Makefile $(EDK2_VARS)
 endef
@@ -186,7 +187,7 @@ linux-cleaner: linux-cleaner-common
 ################################################################################
 # OP-TEE
 ################################################################################
-OPTEE_OS_COMMON_FLAGS += PLATFORM=hikey CFG_TEE_TA_LOG_LEVEL=3 CFG_CONSOLE_UART=$(CFG_SW_CONSOLE_UART)
+OPTEE_OS_COMMON_FLAGS += PLATFORM=hikey CFG_CONSOLE_UART=$(CFG_SW_CONSOLE_UART)
 OPTEE_OS_CLEAN_COMMON_FLAGS += PLATFORM=hikey
 
 optee-os: optee-os-common
@@ -215,28 +216,11 @@ xtest-clean: xtest-clean-common
 xtest-patch: xtest-patch-common
 
 ################################################################################
-# aes-pef
+# hello_world
 ################################################################################
-PERF_FLAGS := CROSS_COMPILE_HOST=$(CROSS_COMPILE_NS_USER) \
-	CROSS_COMPILE_TA=$(CROSS_COMPILE_S_USER) \
-	TA_DEV_KIT_DIR=$(OPTEE_OS_TA_DEV_KIT_DIR)
+helloworld: helloworld-common
 
-aes-perf: optee-os optee-client
-	$(MAKE) -C $(AESPERF_PATH) $(PERF_FLAGS)
-
-.PHONY: aes-perf-clean
-aes-perf-clean:
-	rm -rf $(AESPERF_PATH)/out
-
-################################################################################
-# sha-perf
-################################################################################
-sha-perf: optee-os optee-client
-	$(MAKE) -C $(SHAPERF_PATH) $(PERF_FLAGS)
-
-.PHONY: sha-perf-clean
-sha-perf-clean:
-	rm -rf $(SHAPERF_PATH)/out
+helloworld-clean: helloworld-clean-common
 
 ################################################################################
 # strace
@@ -265,28 +249,15 @@ define expand-env-var
 awk '{while(match($$0,"[$$]{[^}]*}")) {var=substr($$0,RSTART+2,RLENGTH -3);gsub("[$$]{"var"}",ENVIRON[var])}}1'
 endef
 
-filelist-all: busybox
-	cat $(GEN_ROOTFS_PATH)/filelist-final.txt | sed '/fbtest/d' > $(GEN_ROOTFS_PATH)/filelist-all.txt
-	export KERNEL_VERSION=$(call KERNEL_VERSION); \
-	export TOP=$(ROOT); export MULTIARCH=$(MULTIARCH); \
-	$(expand-env-var) <$(PATCHES_PATH)/rootfs/initramfs-add-files.txt >> $(GEN_ROOTFS_PATH)/filelist-all.txt; \
-	find $(OPTEE_TEST_OUT_PATH) -type f -name "xtest" | sed 's/\(.*\)/file \/bin\/xtest \1 755 0 0/g' >> $(GEN_ROOTFS_PATH)/filelist-all.txt; \
-	find $(OPTEE_TEST_OUT_PATH) -name "*.ta" | \
-		sed 's/\(.*\)\/\(.*\)/file \/lib\/optee_armtz\/\2 \1\/\2 444 0 0/g' >> $(GEN_ROOTFS_PATH)/filelist-all.txt
-	@if [ -e $(OPTEE_GENDRV_MODULE) ]; then
-		@echo "# OP-TEE device" >> $(GEN_ROOTFS_PATH)/filelist-all.txt
-		@echo "dir /lib/modules 755 0 0" >> $(GEN_ROOTFS_PATH)/filelist-all.txt
-		@echo "dir /lib/modules/$(call KERNEL_VERSION) 755 0 0" >> $(GEN_ROOTFS_PATH)/filelist-all.txt
-		@echo "file /lib/modules/$(call KERNEL_VERSION)/optee.ko $(OPTEE_GENDRV_MODULE) 755 0 0" >> $(GEN_ROOTFS_PATH)/filelist-all.txt
-	@fi
+.PHONY: filelist-tee
+filelist-tee: filelist-tee-common
+	env TOP=$(ROOT) $(expand-env-var) <$(PATCHES_PATH)/rootfs/initramfs-add-files.txt >> $(GEN_ROOTFS_FILELIST)
 
-update_rootfs: optee-client xtest aes-perf sha-perf strace filelist-all linux-gen_init_cpio
-	cd $(GEN_ROOTFS_PATH); \
-	        $(LINUX_PATH)/usr/gen_init_cpio $(GEN_ROOTFS_PATH)/filelist-all.txt | gzip > $(GEN_ROOTFS_PATH)/filesystem.cpio.gz
+.PHONY: update_rootfs
+update_rootfs: update_rootfs-common
 
 .PHONY: update_rootfs-clean
-update_rootfs-clean:
-	rm -f $(GEN_ROOTFS_PATH)/filesystem.cpio.gz $(GEN_ROOTFS_PATH)/filelist-all.txt $(GEN_ROOTFS_PATH)/filelist-tmp.txt
+update_rootfs-clean: update_rootfs-clean-common
 
 ################################################################################
 # grub
@@ -334,25 +305,15 @@ GRUBCFG = $(PATCHES_PATH)/grub/grub_uart0.cfg
 endif
 
 boot-img: linux update_rootfs edk2 grub
-	sudo -p "[sudo] Password:" true
-	if [ -d .tmpbootimg ] ; then sudo rm -rf .tmpbootimg ; fi
-	mkdir -p .tmpbootimg
-	dd if=/dev/zero of=$(BOOT_IMG) bs=512 count=131072 status=none
-	sudo mkfs.vfat -n "BOOT IMG" $(BOOT_IMG) >/dev/null
-	sudo mount -o loop,rw,sync $(BOOT_IMG) .tmpbootimg
-	sudo cp $(LINUX_PATH)/arch/arm64/boot/Image $(DTB) .tmpbootimg/
-	sudo mkdir -p .tmpbootimg/EFI/BOOT
-	sudo cp $(OUT_PATH)/grubaa64.efi .tmpbootimg/EFI/BOOT/
-	sudo cp $(GRUBCFG) .tmpbootimg/EFI/BOOT/grub.cfg
-	sudo cp $(GEN_ROOTFS_PATH)/filesystem.cpio.gz .tmpbootimg/initrd.img
-	sudo cp $(EDK2_PATH)/Build/HiKey/$(EDK2_BUILD)_GCC49/AARCH64/AndroidFastbootApp.efi .tmpbootimg/EFI/BOOT/fastboot.efi
-	# We cannot figure out why we need the sleep here, but from time to time
-	# we can see that we get "device/resource busy" when trying to unmount
-	# .tmpbootimg below. A short sleep seems to solve the problem and has to
-	# be here until we figure out why this happens.
-	sleep 3
-	sudo umount .tmpbootimg
-	sudo rm -rf .tmpbootimg
+	rm -f $(BOOT_IMG)
+	mformat -i $(BOOT_IMG) -n 64 -h 255 -T 131072 -v "BOOT IMG" -C ::
+	mcopy -i $(BOOT_IMG) $(LINUX_PATH)/arch/arm64/boot/Image $(DTB) ::
+	mmd -i $(BOOT_IMG) ::/EFI
+	mmd -i $(BOOT_IMG) ::/EFI/BOOT
+	mcopy -i $(BOOT_IMG) $(OUT_PATH)/grubaa64.efi ::/EFI/BOOT/
+	mcopy -i $(BOOT_IMG) $(GRUBCFG) ::/EFI/BOOT/grub.cfg
+	mcopy -i $(BOOT_IMG) $(GEN_ROOTFS_PATH)/filesystem.cpio.gz ::/initrd.img
+	mcopy -i $(BOOT_IMG) $(EDK2_PATH)/Build/HiKey/$(EDK2_BUILD)_GCC49/AARCH64/AndroidFastbootApp.efi ::/EFI/BOOT/fastboot.efi
 
 .PHONY: boot-img-clean
 boot-img-clean:
@@ -362,7 +323,7 @@ boot-img-clean:
 # l-loader
 ################################################################################
 lloader: arm-tf
-	$(MAKE) -C $(LLOADER_PATH) BL1=$(ARM_TF_PATH)/build/hikey/$(ARM_TF_BUILD)/bl1.bin CROSS_COMPILE="$(CCACHE)$(AARCH32_CROSS_COMPILE)" PTABLE_LST=linux-4g
+	$(MAKE) -C $(LLOADER_PATH) BL1=$(ARM_TF_PATH)/build/hikey/$(ARM_TF_BUILD)/bl1.bin CROSS_COMPILE="$(CCACHE)$(AARCH32_CROSS_COMPILE)" PTABLE_LST=linux-$(CFG_FLASH_SIZE)g
 
 .PHONY: lloader-clean
 lloader-clean:
@@ -390,10 +351,16 @@ endef
 .PHONY: recovery
 recovery:
 	@echo "Enter recovery mode to flash a new bootloader"
+	@echo
+	@echo "Make sure udev permissions are set appropriately:"
+	@echo "  # /etc/udev/rules.d/hikey.rules"
+	@echo '  SUBSYSTEM=="usb", ATTRS{idVendor}=="18d1", ATTRS{idProduct}=="d00d", MODE="0666"'
+	@echo '  SUBSYSTEM=="usb", ATTRS{idVendor}=="12d1", MODE="0666", ENV{ID_MM_DEVICE_IGNORE}="1"'
+	@echo
 	@echo "Jumper 1-2: Closed (Auto power up = Boot up when power is applied)"
 	@echo "       3-4: Closed (Boot Select = Recovery: program eMMC from USB OTG)"
 	$(call flash_help)
-	sudo python $(ROOT)/burn-boot/hisi-idt.py --img1=$(LLOADER_PATH)/l-loader.bin
+	python $(ROOT)/burn-boot/hisi-idt.py --img1=$(LLOADER_PATH)/l-loader.bin
 	@$(MAKE) --no-print flash FROM_RECOVERY=1
 
 .PHONY: flash
@@ -408,7 +375,7 @@ ifneq ($(FROM_RECOVERY),1)
 	@echo "    \"Android Fastboot mode - version x.x Press any key to quit.\""
 	@read -r -p "   Then press any key to continue flashing" dummy
 endif
-	fastboot flash ptable $(LLOADER_PATH)/ptable-linux-4g.img
+	fastboot flash ptable $(LLOADER_PATH)/ptable-linux-$(CFG_FLASH_SIZE)g.img
 	fastboot flash fastboot $(ARM_TF_PATH)/build/hikey/$(ARM_TF_BUILD)/fip.bin
 	fastboot flash nvme $(NVME_IMG)
 	fastboot flash boot $(BOOT_IMG)
