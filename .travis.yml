@@ -5,19 +5,35 @@ language: bash
 notifications:
   - email: true
 
+dist: trusty
 sudo: required
+group: beta
 
 cache:
   ccache: true
   directories:
-    - $HOME/downloads
+    - $HOME/reference
 
 git:
-  depth: 1000000
+  depth: 1
+
+addons:
+  apt:
+          #sources:
+          #- sourceline:
+    packages:
+    - android-tools-adb
+    - libc6
+    - libstdc++6
+    - libz1
+#    - android-tools-fastboot
+#    - libhidapi-dev
+#    - python-wand
 
 before_install:
+  - sudo dpkg --add-architecture i386
   - sudo apt-get update -qq
-  - sudo apt-get install -qq android-tools-adb android-tools-fastboot autoconf  automake bc bison build-essential cscope curl flex ftp-upload gdisk  libattr1-dev libc6:i386 libcap-dev libfdt-dev libftdi-dev  libglib2.0-dev libhidapi-dev libncurses5-dev libpixman-1-dev  libssl-dev libstdc++6:i386 libtool libz1:i386 make mtools netcat  python-crypto python-serial python-wand unzip uuid-dev xdg-utils  xterm xz-utils zlib1g-dev
+  - sudo apt-get install -qq -y android-tools-adb android-tools-fastboot autoconf  automake bc bison build-essential cscope curl flex ftp-upload gdisk  libattr1-dev libc6:i386 libcap-dev libfdt-dev libftdi-dev  libglib2.0-dev libhidapi-dev libncurses5-dev libpixman-1-dev  libssl-dev libstdc++6:i386 libtool libz1:i386 make mtools netcat  python-crypto python-serial python-wand unzip uuid-dev xdg-utils  xterm xz-utils zlib1g-dev
   # Install the cross compilers
   #- wget http://releases.linaro.org/components/toolchain/binaries/5.3-2016.02/arm-linux-gnueabihf/gcc-linaro-5.3-2016.02-x86_64_arm-linux-gnueabihf.tar.xz
   #- tar xf gcc-linaro-5.3-2016.02-x86_64_arm-linux-gnueabihf.tar.xz
@@ -29,8 +45,16 @@ before_install:
   #- aarch64-linux-gnu-gcc --version
 
 before_script:
-        - echo "Done"
-        #  # Store the home repository
+        - mkdir $HOME/bin
+        - (cd $HOME/bin && wget https://storage.googleapis.com/git-repo-downloads/repo && chmod +x repo)
+        - export PATH=$HOME/bin:$PATH
+        - (cd $HOME/reference && repo init -u https://github.com/OP-TEE/manifest.git -m default.xml </dev/null && repo sync -j2 --no-clone-bundle --no-tags --quiet -j 2)
+        - (cd $HOME/reference/build && make toolchains)
+        - mkdir $HOME/optee
+        - (cd $HOME/optee && repo init -u https://github.com/OP-TEE/manifest.git -m default.xml --reference $HOME/reference </dev/null && repo sync -j2 --no-clone-bundle --no-tags --quiet -j 2)
+        - (cd $HOME/optee && ln -s $HOME/reference/toolchains .)
+        - (cd $HOME/optee/build && make all -j4)
+        # #-  # Store the home repository
         #  - export MYHOME=$PWD
         #
         #  # Download checkpatch.pl
