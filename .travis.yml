@@ -26,6 +26,15 @@ addons:
     - libstdc++6
     - libz1
 
+before_cache:
+        - ccache -s
+
+after_success:
+        - ccache -s
+
+after_failure:
+        - ccache -s
+
 before_install:
   - sudo dpkg --add-architecture i386
   - sudo apt-get update -qq
