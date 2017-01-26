@@ -29,6 +29,7 @@ before_install:
   #- aarch64-linux-gnu-gcc --version
 
 before_script:
+        - echo "Done"
         #  # Store the home repository
         #  - export MYHOME=$PWD
         #
