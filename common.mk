@@ -13,6 +13,7 @@ GEN_ROOTFS_PATH			?= $(ROOT)/gen_rootfs
 GEN_ROOTFS_FILELIST		?= $(GEN_ROOTFS_PATH)/filelist-tee.txt
 OPTEE_OS_PATH			?= $(ROOT)/optee_os
 OPTEE_CLIENT_PATH		?= $(ROOT)/optee_client
+OPTEE_CLIENT_OUT		?= $(OPTEE_CLIENT_PATH)/out
 OPTEE_CLIENT_EXPORT		?= $(OPTEE_CLIENT_PATH)/out/export
 OPTEE_TEST_PATH			?= $(ROOT)/optee_test
 OPTEE_TEST_OUT_PATH		?= $(ROOT)/optee_test/out
@@ -112,6 +113,11 @@ CROSS_COMPILE_NS_USER   ?= "$(CCACHE)$(AARCH$(COMPILE_NS_USER)_CROSS_COMPILE)"
 CROSS_COMPILE_NS_KERNEL ?= "$(CCACHE)$(AARCH$(COMPILE_NS_KERNEL)_CROSS_COMPILE)"
 CROSS_COMPILE_S_USER    ?= "$(CCACHE)$(AARCH$(COMPILE_S_USER)_CROSS_COMPILE)"
 CROSS_COMPILE_S_KERNEL  ?= "$(CCACHE)$(AARCH$(COMPILE_S_KERNEL)_CROSS_COMPILE)"
+
+# FIXME: Just a temporary thing when doing a CMake RFC. Cmake doesn't handle
+# ccache in the string as make does, instead there is another mechanism to use
+# ccache which is what I've added to CMakeLists.txt in optee_client.
+CROSS_COMPILE_NS_USER_ONLY_COMPILER   ?= $(AARCH$(COMPILE_NS_USER)_CROSS_COMPILE)
 
 ifeq ($(COMPILE_S_USER),32)
 OPTEE_OS_TA_DEV_KIT_DIR	?= $(OPTEE_OS_PATH)/out/arm/export-ta_arm32
@@ -313,15 +319,21 @@ OPTEE_CLIENT_COMMON_FLAGS ?= CROSS_COMPILE=$(CROSS_COMPILE_NS_USER) \
 
 .PHONY: optee-client-common
 optee-client-common:
-	$(MAKE) -C $(OPTEE_CLIENT_PATH) $(OPTEE_CLIENT_COMMON_FLAGS)
+	mkdir -p $(OPTEE_CLIENT_OUT) && \
+	cd $(OPTEE_CLIENT_OUT) && \
+	export CC="$(CROSS_COMPILE_NS_USER_ONLY_COMPILER)gcc" && \
+	cmake -DCMAKE_INSTALL_PREFIX="$(OPTEE_CLIENT_EXPORT)" .. && \
+	make && \
+	make install
 
 # OPTEE_CLIENT_CLEAN_COMMON_FLAGS can be defined in specific makefiles
 # (hikey.mk,...) if necessary
 
 .PHONY: optee-client-clean-common
 optee-client-clean-common:
-	$(MAKE) -C $(OPTEE_CLIENT_PATH) $(OPTEE_CLIENT_CLEAN_COMMON_FLAGS) \
-		clean
+	cd $(OPTEE_CLIENT_OUT) && \
+	export CC="$(CROSS_COMPILE_NS_USER_ONLY_COMPILER)" && \
+	make clean
 
 ################################################################################
 # xtest / optee_test
@@ -456,7 +468,7 @@ filelist-tee-common: optee-client xtest optee-examples
 	@echo "# OP-TEE Client" 					>> $(fl)
 	@echo "file /bin/tee-supplicant $(OPTEE_CLIENT_EXPORT)/bin/tee-supplicant 755 0 0" \
 									>> $(fl)
-	@echo "file /lib/libteec.so.1.0 $(OPTEE_CLIENT_EXPORT)/lib/libteec.so.1.0 755 0 0" \
+	@echo "file /lib/libteec.so.1.0 $(OPTEE_CLIENT_EXPORT)/lib/libteec.so.1.0.0 755 0 0" \
 									>> $(fl)
 	@echo "slink /lib/libteec.so.1 libteec.so.1.0 755 0 0"			>> $(fl)
 	@echo "slink /lib/libteec.so libteec.so.1 755 0 0" 			>> $(fl)
