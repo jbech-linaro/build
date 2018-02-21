@@ -470,4 +470,6 @@ filelist-tee-common: optee-client xtest optee-examples
 	fi
 	@echo "file /etc/init.d/optee $(BUILD_PATH)/init.d.optee 755 0 0"	>> $(fl)
 	@echo "slink /etc/rc.d/S09_optee /etc/init.d/optee 755 0 0"	>> $(fl)
+	@echo "file /bin/template_ta $(ROOT)/template_ta/host/template_ta_host 755 0 0" >> $(fl)
+	@echo "file /lib/optee_armtz/11111111-2222-3333-445566778899aabb.ta $(ROOT)/template_ta/ta/out/11111111-2222-3333-445566778899aabb.ta 755 0 0" >> $(fl)
 	@echo "# filelist-tee-common /end"				>> $(fl)
