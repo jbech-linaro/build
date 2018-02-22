@@ -258,7 +258,6 @@ define launch-terminal
 		$(LAUNCH_TERMINAL) $(SOC_TERM_PATH)/soc_term $(1) &
 endef
 else
-gnome-terminal := $(shell command -v gnome-terminal 2>/dev/null)
 xterm := $(shell command -v xterm 2>/dev/null)
 ifdef gnome-terminal
 # Note: the title option (-t) is ignored with gnome-terminal versions
