@@ -38,7 +38,7 @@ OPTEE_BIN		?= $(OPTEE_PATH)/out/arm/core/tee-header_v2.bin
 OPTEE_BIN_EXTRA1	?= $(OPTEE_PATH)/out/arm/core/tee-pager_v2.bin
 OPTEE_BIN_EXTRA2	?= $(OPTEE_PATH)/out/arm/core/tee-pageable_v2.bin
 
-NFS 			?= /mnt/sshd/srv/nfs/debian-arm64
+NFS 			?= /media/jbech/SSHD_LINUX/srv/nfs/debian-arm64
 
 LINUX_IMAGE		?= $(LINUX_PATH)/arch/arm64/boot/Image
 LINUX_DTB_RPI3_B	?= $(LINUX_PATH)/arch/arm64/boot/dts/broadcom/bcm2710-rpi-3-b.dtb
@@ -173,16 +173,35 @@ update_rootfs: arm-tf linux u-boot
 	@install -v -p --mode=755 $(RPI3_STOCK_FW_PATH)/boot/start_x.elf $(BUILDROOT_TARGET_ROOT)/boot/start_x.elf
 	@cd $(MODULE_OUTPUT) && find . | cpio -pudm $(BUILDROOT_TARGET_ROOT)
 
+OPTEE_TEST_BUILDS=$(ROOT)/out-br/build/optee_test-1.0
+OPTEE_CLIENT_BUILDS=$(ROOT)/out-br/build/optee_client-1.0
+OPTEE_EXAMPLES_BUILDS=$(ROOT)/out-br/build/optee_examples-1.0
+
 $(CURDIR)/copy.files:
 	@echo "Creating $(shell basename $@)"
 	@echo "mkdir -p $(NFS)/lib/optee_armtz" > copy.files
-	@find $(OPTEE_TEST_OUT_PATH) -name "*.ta" | \
+	@#
+	@# Xtest TA's
+	@find $(OPTEE_TEST_BUILDS) -name "*.ta" | \
 		sed "s|\(.*\)\/\(.*\)|/bin/cp \1\/\2 $(NFS)\/lib\/optee_armtz\/\2|g" >> copy.files
-	@find $(OPTEE_TEST_OUT_PATH) -type f -name "xtest" | sed "s|\(.*\)|/bin/cp \1 $(NFS)/bin/|g" >> copy.files
-	@echo "/bin/cp $(OPTEE_CLIENT_EXPORT)/bin/tee-supplicant $(NFS)/bin/tee-supplicant" >> copy.files
-	@find $(OPTEE_CLIENT_EXPORT)/lib/ -type f -name "libteec.so*" | sed "s|\(.*\)|/bin/cp \1 $(NFS)/lib/|g" >> copy.files
-	@find $(HELLOWORLD_PATH) -type f -name "hello_world" | sed "s|\(.*\)|/bin/cp \1 $(NFS)/bin/|g" >> copy.files
-	@find $(HELLOWORLD_PATH) -type f -name "*.ta" | sed "s|\(.*\)|/bin/cp \1 $(NFS)/lib/optee_armtz/|g" >> copy.files
+	@#
+	@# Xtest binary
+	@find $(OPTEE_TEST_BUILDS) -type f -name "xtest" | sed "s|\(.*\)|/bin/cp \1 $(NFS)/bin/|g" >> copy.files
+	@#
+	@# TEE supplicant
+	@echo "/bin/cp $(OPTEE_CLIENT_BUILDS)/tee-supplicant/tee-supplicant $(NFS)/bin/tee-supplicant" >> copy.files
+	@#
+	@# Libteec.so
+	@find $(OPTEE_CLIENT_BUILDS) -type f -name "libteec.so*" | sed "s|\(.*\)|/bin/cp \1 $(NFS)/lib/|g" >> copy.files
+	@#
+	@# optee_examples host
+	@find $(OPTEE_EXAMPLES_BUILDS) -type f -name "aes" | sed "s|\(.*\)|/bin/cp \1 $(NFS)/bin/|g" >> copy.files
+	@find $(OPTEE_EXAMPLES_BUILDS) -type f -name "hello_world" | sed "s|\(.*\)|/bin/cp \1 $(NFS)/bin/|g" >> copy.files
+	@find $(OPTEE_EXAMPLES_BUILDS) -type f -name "hotp" | sed "s|\(.*\)|/bin/cp \1 $(NFS)/bin/|g" >> copy.files
+	@find $(OPTEE_EXAMPLES_BUILDS) -type f -name "random" | sed "s|\(.*\)|/bin/cp \1 $(NFS)/bin/|g" >> copy.files
+	@#
+	@# optee_examples TA's
+	@find $(OPTEE_EXAMPLES_BUILDS) -type f -name "*.ta" | sed "s|\(.*\)|/bin/cp \1 $(NFS)/lib/optee_armtz/|g" >> copy.files
 
 .PHONY: sync
 sync: $(CURDIR)/copy.files
