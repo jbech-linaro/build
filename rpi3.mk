@@ -195,10 +195,12 @@ $(CURDIR)/copy.files:
 	@find $(OPTEE_CLIENT_BUILDS) -type f -name "libteec.so*" | sed "s|\(.*\)|/bin/cp \1 $(NFS)/lib/|g" >> copy.files
 	@#
 	@# optee_examples host
+	@find $(OPTEE_EXAMPLES_BUILDS) -type f -name "acipher" | sed "s|\(.*\)|/bin/cp \1 $(NFS)/bin/|g" >> copy.files
 	@find $(OPTEE_EXAMPLES_BUILDS) -type f -name "aes" | sed "s|\(.*\)|/bin/cp \1 $(NFS)/bin/|g" >> copy.files
 	@find $(OPTEE_EXAMPLES_BUILDS) -type f -name "hello_world" | sed "s|\(.*\)|/bin/cp \1 $(NFS)/bin/|g" >> copy.files
 	@find $(OPTEE_EXAMPLES_BUILDS) -type f -name "hotp" | sed "s|\(.*\)|/bin/cp \1 $(NFS)/bin/|g" >> copy.files
 	@find $(OPTEE_EXAMPLES_BUILDS) -type f -name "random" | sed "s|\(.*\)|/bin/cp \1 $(NFS)/bin/|g" >> copy.files
+	@find $(OPTEE_EXAMPLES_BUILDS) -type f -name "secure_storage" | sed "s|\(.*\)|/bin/cp \1 $(NFS)/bin/|g" >> copy.files
 	@#
 	@# optee_examples TA's
 	@find $(OPTEE_EXAMPLES_BUILDS) -type f -name "*.ta" | sed "s|\(.*\)|/bin/cp \1 $(NFS)/lib/optee_armtz/|g" >> copy.files
