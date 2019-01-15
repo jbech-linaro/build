@@ -43,9 +43,9 @@ MODULE_OUTPUT		?= $(ROOT)/module_output
 ################################################################################
 # Targets
 ################################################################################
-all: arm-tf buildroot optee-os u-boot u-boot-rpi-bin \
+all: arm-tf buildroot optee-os u-boot \
 	linux update_rootfs
-clean: arm-tf-clean buildroot-clean u-boot-clean u-boot-rpi-bin-clean \
+clean: arm-tf-clean buildroot-clean u-boot-clean \
 	optee-os-clean head-bin-clean
 
 include toolchain.mk
@@ -84,33 +84,44 @@ arm-tf-clean:
 U-BOOT_EXPORTS ?= CROSS_COMPILE=$(AARCH64_CROSS_COMPILE) ARCH=arm64
 
 .PHONY: u-boot
-u-boot: $(RPI3_HEAD_BIN)
+u-boot: rpi3-u-boot-bin rpi3-u-boot-env
+
+.PHONY: u-boot-clean
+u-boot-clean: u-boot-bin-clean rpi3-u-boot-bin-clean rpi3-head-bin-clean \
+	rpi3-u-boot-env-clean
+
+u-boot-bin: 
 	$(U-BOOT_EXPORTS) $(MAKE) -C $(U-BOOT_PATH) rpi_3_defconfig
 	$(U-BOOT_EXPORTS) $(MAKE) -C $(U-BOOT_PATH) all
 	$(U-BOOT_EXPORTS) $(MAKE) -C $(U-BOOT_PATH) tools
 
-u-boot-clean:
+.PHONY: u-boot-bin-clean
+u-boot-bin-clean:
 	$(U-BOOT_EXPORTS) $(MAKE) -C $(U-BOOT_PATH) clean
 
-u-boot-rpi-bin: $(RPI3_UBOOT_ENV) u-boot
+rpi3-u-boot-bin: rpi3-head-bin u-boot-bin
 	cd $(U-BOOT_PATH) && cat $(RPI3_HEAD_BIN) $(U-BOOT_BIN) > $(U-BOOT_RPI_BIN)
 
-u-boot-rpi-bin-clean:
+.PHONY: rpi3-u-boot-bin-clean
+rpi3-u-boot-bin-clean:
 	rm -f $(U-BOOT_RPI_BIN)
 
-$(RPI3_HEAD_BIN): $(RPI3_FIRMWARE_PATH)/head.S
+rpi3-head-bin: $(RPI3_FIRMWARE_PATH)/head.S
 	mkdir -p $(ROOT)/out/
 	$(AARCH64_CROSS_COMPILE)as $< -o $(ROOT)/out/head.o
-	$(AARCH64_CROSS_COMPILE)objcopy -O binary $(ROOT)/out/head.o $@
+	$(AARCH64_CROSS_COMPILE)objcopy -O binary $(ROOT)/out/head.o $(RPI3_HEAD_BIN)
 
-head-bin-clean:
+.PHONY: rpi3-head-bin-clean
+rpi3-head-bin-clean:
 	rm -f $(RPI3_HEAD_BIN) $(ROOT)/out/head.o
 
-$(RPI3_UBOOT_ENV): $(RPI3_UBOOT_ENV_TXT) u-boot
+.PHONY: rpi3-u-boot-env
+rpi3-u-boot-env: $(RPI3_UBOOT_ENV_TXT) u-boot-bin
 	mkdir -p $(ROOT)/out
-	$(U-BOOT_PATH)/tools/mkenvimage -s 0x4000 -o $(ROOT)/out/uboot.env $(RPI3_UBOOT_ENV_TXT)
+	$(U-BOOT_PATH)/tools/mkenvimage -s 0x4000 -o $(RPI3_UBOOT_ENV) $(RPI3_UBOOT_ENV_TXT)
 
-u-boot-env-clean:
+.PHONY: rpi3-u-boot-env-clean
+rpi3-u-boot-env-clean:
 	rm -f $(RPI3_UBOOT_ENV)
 
 ################################################################################
