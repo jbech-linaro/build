@@ -209,6 +209,14 @@ $(CURDIR)/copy.files:
 sync: $(CURDIR)/copy.files
 	bash $<
 
+.PHONY: armstub8-info
+armstub8-info:
+	@echo -n "Size:  "
+	@printf '%x\n' $$(ls -al $(ARM_TF_BOOT)| awk '{ print $$5 }')
+	@echo -n "SHA-1: "
+	@sha1sum $(ARM_TF_BOOT)
+
+
 # Creating images etc, could wipe out a drive on the system, therefore we don't
 # want to automate that in script or make target. Instead we just simply provide
 # the steps here.
