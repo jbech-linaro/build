@@ -153,6 +153,42 @@ optee-os: optee-os-common
 OPTEE_OS_CLEAN_COMMON_FLAGS += PLATFORM=rpi3
 optee-os-clean: optee-os-clean-common
 
+
+################################################################################
+# OpenOCD / JTAG
+################################################################################
+OPENOCD_PATH      ?= $(ROOT)/openocd
+OPENOCD_BIN       ?= openocd
+OPENOCD_JLINK_CFG ?= $(OPENOCD_PATH)/tcl/interface/jlink.cfg
+OPENOCD_RPI3_CFG  ?= $(BUILD_PATH)/rpi3/debugger/pi3.cfg
+OPENOCD_CMD       ?= $(OPENOCD_PATH)/src/$(OPENOCD_BIN) \
+		     -f $(OPENOCD_JLINK_CFG) \
+		     -f $(OPENOCD_RPI3_CFG)
+
+GDB_BIN		  ?= $(AARCH64_PATH)/bin/aarch64-linux-gnu-gdb
+GDB_ARGS          ?= -ex 'target remote localhost:3333' \
+		     -ex 'symbol-file $(OPTEE_PATH)/out/arm/core/tee.elf' \
+		     -ex 'hb tee_entry_std' \
+		     -q
+GDB_CMD           ?= $(GDB_BIN) $(GDB_ARGS)
+
+jtag:
+ifdef terminator
+	$(terminator) -x "$(OPENOCD_CMD)" &
+	sleep 3
+	$(terminator) -x "$(GDB_CMD)" &
+else
+ifdef gnome-terminal
+	$(gnome-terminal) -x $(OPENOCD_CMD) &
+	sleep 1
+	$(gnome-terminal) -x $(GDB_CMD) &
+else
+	$(xterm) -title "OpenOCD" -e $(BASH) -c "$(OPENOCD_CMD)" &
+	sleep 1
+	$(xterm) -title "GDB" -e $(BASH) -c "$(GDB_CMD)" &
+endif
+endif
+
 ################################################################################
 # Root FS
 ################################################################################

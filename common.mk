@@ -344,6 +344,7 @@ define launch-terminal
 		$(LAUNCH_TERMINAL) "$(SOC_TERM_PATH)/soc_term $(1)" &
 endef
 else
+terminator := $(shell command -v terminator 2>/dev/null)
 gnome-terminal := $(shell command -v gnome-terminal 2>/dev/null)
 xterm := $(shell command -v xterm 2>/dev/null)
 ifdef gnome-terminal
