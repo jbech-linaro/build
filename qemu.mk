@@ -26,9 +26,9 @@ DEBUG = 1
 ################################################################################
 # Targets
 ################################################################################
-all: arm-tf u-boot buildroot linux optee-os qemu soc-term
-clean: arm-tf-clean u-boot-clean buildroot-clean linux-clean optee-os-clean \
-	qemu-clean soc-term-clean check-clean
+all: arm-tf u-boot buildroot ftpm linux optee-os qemu soc-term
+clean: arm-tf-clean u-boot-clean buildroot-clean ftpm-clean linux-clean \
+	optee-os-clean qemu-clean soc-term-clean check-clean
 
 include toolchain.mk
 
@@ -151,6 +151,13 @@ soc-term:
 
 soc-term-clean:
 	$(MAKE) -C $(SOC_TERM_PATH) clean
+
+################################################################################
+# fTPM
+################################################################################
+ftpm: ftpm-common
+
+ftpm-clean: ftpm-clean-common
 
 ################################################################################
 # Run targets

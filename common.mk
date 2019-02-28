@@ -9,6 +9,7 @@ ROOT ?= $(shell pwd)/..
 BUILD_PATH			?= $(ROOT)/build
 LINUX_PATH			?= $(ROOT)/linux
 OPTEE_GENDRV_MODULE		?= $(LINUX_PATH)/drivers/tee/optee/optee.ko
+FTPM_PATH			?= $(ROOT)/ms-tpm-20-ref
 GEN_ROOTFS_PATH			?= $(ROOT)/gen_rootfs
 GEN_ROOTFS_FILELIST		?= $(GEN_ROOTFS_PATH)/filelist-tee.txt
 OPTEE_OS_PATH			?= $(ROOT)/optee_os
@@ -471,3 +472,20 @@ benchmark-app-common: optee-os optee-client
 .PHONY: benchmark-app-clean-common
 benchmark-app-clean-common:
 	$(MAKE) -C $(BENCHMARK_APP_PATH) clean
+
+################################################################################
+# fTPM
+################################################################################
+FTPM_COMMON_FLAGS ?= TA_CROSS_COMPILE=$(CROSS_COMPILE_S_USER) \
+		     TA_DEV_KIT_DIR=$(OPTEE_OS_TA_DEV_KIT_DIR) \
+
+.PHONY: ftpm-common
+ftpm-common: optee-os optee-client-common
+	$(MAKE) -C $(FTPM_PATH) $(FTPM_COMMON_FLAGS)
+
+FTPM_CLEAN_COMMON_FLAGS ?= TA_DEV_KIT_DIR=$(OPTEE_OS_TA_DEV_KIT_DIR)
+
+.PHONY: ftpm-clean-common
+ftpm-clean-common:
+	$(MAKE) -C $(FTPM_PATH) \
+			$(FTPM_CLEAN_COMMON_FLAGS) clean
