@@ -1,5 +1,5 @@
 cmake_minimum_required (VERSION 3.4)
-project (optee C)
+project (optee)
 
 set (CMAKE_TOOLCHAIN_FILE CMakeToolchain.txt)
 
@@ -9,8 +9,7 @@ include(GNUInstallDirs)
 # Compiler flags:
 #   We want to use the same flags in the entire optee_client git
 ################################################################################
-add_compile_options (-fPIC)
-# FIXME: Having all flags enabled give build errors in optee_examples
+add_compile_options (-fPIC) # FIXME: Having all flags enabled give build errors in optee_examples
 #add_compile_options (
 #	-Wall -Wbad-function-cast -Wcast-align
 #	-Werror-implicit-function-declaration -Wextra
@@ -29,10 +28,42 @@ if(CCACHE_FOUND)
     set_property(GLOBAL PROPERTY RULE_LAUNCH_LINK ccache)
 endif(CCACHE_FOUND)
 
+add_custom_command(
+	OUTPUT
+		optee_test.stamp
+	COMMAND
+	make -C ${CMAKE_SOURCE_DIR}/optee_test/ta O=${CMAKE_SOURCE_DIR}/out TA_DEV_KIT_DIR=${CMAKE_SOURCE_DIR}/optee_os/out/arm-plat-vexpress/export-ta_arm32/
+		#COMMENT
+		#"Building optee_os"
+	VERBATIM
+	)
+	
+
+add_custom_command(
+	OUTPUT
+		optee_os/out
+	COMMAND
+		make -C ${CMAKE_SOURCE_DIR}/optee_os CFG_TA_MBEDTLS=n CFG_TA_MBEDTLS_MPI=n
+		#COMMENT
+		#"Building optee_os"
+	VERBATIM
+	)
+
+add_custom_target(
+	optee_os
+	DEPENDS optee_os/out
+	)
+
+add_custom_target(
+	optee_test-ta
+	DEPENDS optee_test.stamp
+	)
+
 add_subdirectory (optee_client)
-add_subdirectory (optee_examples)
 add_subdirectory (optee_test)
-add_subdirectory (optee_os)
+#add_subdirectory (optee_examples)
+#add_subdirectory (optee_os)
+
 
 ## ------------------------- Begin Generic CMake Variable Logging ------------------
 #
@@ -186,4 +217,4 @@ add_subdirectory (optee_os)
 ##MESSAGE( STATUS ": " ${} )
 #
 ## ------------------------- End of Generic CMake Variable Logging ------------------
-
+#
