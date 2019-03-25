@@ -34,7 +34,7 @@ CCACHE ?= $(shell which ccache) # Don't remove this comment (space is needed)
 # # Set QEMU_VIRTFS_ENABLE to 'y' and adjust QEMU_VIRTFS_HOST_DIR
 # # Then in QEMU, run:
 # # $ mount -t 9p -o trans=virtio host <mount_point>
-QEMU_VIRTFS_ENABLE		?= n
+QEMU_VIRTFS_ENABLE		?= y
 QEMU_VIRTFS_HOST_DIR	?= $(ROOT)
 
 ################################################################################
