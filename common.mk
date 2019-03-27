@@ -237,11 +237,14 @@ endif
 	@echo "BR2_PACKAGE_OPTEE_TEST=y" >> ../out-br/extra.conf
 	@echo "BR2_PACKAGE_OPTEE_EXAMPLES=y" >> ../out-br/extra.conf
 	@echo "BR2_PACKAGE_STRACE=y" >> ../out-br/extra.conf
+	@echo "BR2_PACKAGE_TREE=y" >> ../out-br/extra.conf
+	@echo "BR2_PACKAGE_TPM2_TOOLS=y" >> ../out-br/extra.conf
 ifeq ($(CFG_TEE_BENCHMARK),y)
 	@echo "BR2_PACKAGE_OPTEE_BENCHMARK=y" >> ../out-br/extra.conf
 endif
 	@echo "BR2_PACKAGE_OPENSSL=y" >> ../out-br/extra.conf
 	@echo "BR2_PACKAGE_LIBOPENSSL=y" >> ../out-br/extra.conf
+	@echo "BR2_PACKAGE_HAS_UDEV=y" >> ../out-br/extra.conf
 	@(cd .. && python build/br-ext/scripts/make_def_config.py \
 		--br buildroot --out out-br --br-ext build/br-ext \
 		--top-dir "$(ROOT)" \
