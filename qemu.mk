@@ -133,7 +133,7 @@ linux-defconfig: $(LINUX_PATH)/.config
 
 LINUX_COMMON_FLAGS += ARCH=arm
 
-linux: linux-common
+linux: linux-common linux-ftpm-module
 	mkdir -p $(BINARIES_PATH)
 	ln -sf $(LINUX_PATH)/arch/arm/boot/zImage $(BINARIES_PATH)
 

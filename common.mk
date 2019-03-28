@@ -283,6 +283,12 @@ $(LINUX_PATH)/.config: $(LINUX_DEFCONFIG_COMMON_FILES)
 		scripts/kconfig/merge_config.sh $(LINUX_DEFCONFIG_COMMON_FILES) \
 			$(LINUX_DEFCONFIG_BENCH)
 
+.PHONY: linux-ftpm-module
+linux-ftpm-module: linux-defconfig linux-common
+	$(MAKE) -C $(LINUX_PATH) $(LINUX_COMMON_FLAGS)
+	$(MAKE) -C $(LINUX_PATH) LOCALVERSION= ARCH=$(LINUX_DEFCONFIG_COMMON_ARCH) \
+		modules_install INSTALL_MOD_PATH=$(LINUX_PATH)/
+
 .PHONY: linux-defconfig-clean-common
 linux-defconfig-clean-common:
 	rm -f $(LINUX_PATH)/.config
