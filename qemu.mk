@@ -20,15 +20,16 @@ BINARIES_PATH			?= $(ROOT)/out/bin
 U-BOOT_PATH			?= $(ROOT)/u-boot
 QEMU_PATH			?= $(ROOT)/qemu
 SOC_TERM_PATH			?= $(ROOT)/soc_term
+IBMTSS				?= $(ROOT)/ibmtpm20tss
 
 DEBUG = 1
 
 ################################################################################
 # Targets
 ################################################################################
-all: arm-tf u-boot buildroot linux optee-os qemu soc-term
-clean: arm-tf-clean u-boot-clean buildroot-clean linux-clean optee-os-clean \
-	qemu-clean soc-term-clean check-clean
+all: arm-tf u-boot buildroot ibmtss linux optee-os qemu soc-term
+clean: arm-tf-clean u-boot-clean buildroot-clean ibmtss-clean linux-clean \
+	optee-os-clean qemu-clean soc-term-clean check-clean
 
 include toolchain.mk
 
@@ -73,6 +74,18 @@ arm-tf: optee-os u-boot
 
 arm-tf-clean:
 	$(ARM_TF_EXPORTS) $(MAKE) -C $(ARM_TF_PATH) $(ARM_TF_FLAGS) clean
+
+################################################################################
+# ibmtpm20tss
+################################################################################
+.PHONY: ibmtss
+ibmtss: buildroot
+	make -C $(IBMTSS)/utils
+
+.PHONY: ibmtss-clean
+ibmtss-clean:
+	make -C $(IBMTSS)/utils clean
+
 
 ################################################################################
 # QEMU
