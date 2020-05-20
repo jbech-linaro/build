@@ -38,7 +38,7 @@ OPTEE_BIN		?= $(OPTEE_PATH)/out/arm/core/tee-header_v2.bin
 OPTEE_BIN_EXTRA1	?= $(OPTEE_PATH)/out/arm/core/tee-pager_v2.bin
 OPTEE_BIN_EXTRA2	?= $(OPTEE_PATH)/out/arm/core/tee-pageable_v2.bin
 
-NFS 			?= /media/jbech/SSHD_LINUX/srv/nfs/debian-arm64
+NFS 			?= /media/jbech/TSHB_LINUX/srv/nfs/optee-fs
 
 LINUX_IMAGE		?= $(LINUX_PATH)/arch/arm64/boot/Image
 LINUX_DTB_RPI3_B	?= $(LINUX_PATH)/arch/arm64/boot/dts/broadcom/bcm2710-rpi-3-b.dtb
@@ -186,21 +186,21 @@ $(CURDIR)/copy.files:
 		sed "s|\(.*\)\/\(.*\)|/bin/cp \1\/\2 $(NFS)\/lib\/optee_armtz\/\2|g" >> copy.files
 	@#
 	@# Xtest binary
-	@find $(OPTEE_TEST_BUILDS) -type f -name "xtest" | sed "s|\(.*\)|/bin/cp \1 $(NFS)/bin/|g" >> copy.files
+	@find $(OPTEE_TEST_BUILDS) -type f -name "xtest" | sed "s|\(.*\)|/bin/cp \1 $(NFS)/usr/bin/|g" >> copy.files
 	@#
 	@# TEE supplicant
-	@echo "/bin/cp $(OPTEE_CLIENT_BUILDS)/tee-supplicant/tee-supplicant $(NFS)/bin/tee-supplicant" >> copy.files
+	@echo "/bin/cp $(OPTEE_CLIENT_BUILDS)/tee-supplicant/tee-supplicant $(NFS)/usr/bin/tee-supplicant" >> copy.files
 	@#
 	@# Libteec.so
 	@find $(OPTEE_CLIENT_BUILDS) -type f -name "libteec.so*" | sed "s|\(.*\)|/bin/cp \1 $(NFS)/lib/|g" >> copy.files
 	@#
 	@# optee_examples host
-	@find $(OPTEE_EXAMPLES_BUILDS) -type f -name "acipher" | sed "s|\(.*\)|/bin/cp \1 $(NFS)/bin/|g" >> copy.files
-	@find $(OPTEE_EXAMPLES_BUILDS) -type f -name "aes" | sed "s|\(.*\)|/bin/cp \1 $(NFS)/bin/|g" >> copy.files
-	@find $(OPTEE_EXAMPLES_BUILDS) -type f -name "hello_world" | sed "s|\(.*\)|/bin/cp \1 $(NFS)/bin/|g" >> copy.files
-	@find $(OPTEE_EXAMPLES_BUILDS) -type f -name "hotp" | sed "s|\(.*\)|/bin/cp \1 $(NFS)/bin/|g" >> copy.files
-	@find $(OPTEE_EXAMPLES_BUILDS) -type f -name "random" | sed "s|\(.*\)|/bin/cp \1 $(NFS)/bin/|g" >> copy.files
-	@find $(OPTEE_EXAMPLES_BUILDS) -type f -name "secure_storage" | sed "s|\(.*\)|/bin/cp \1 $(NFS)/bin/|g" >> copy.files
+	@find $(OPTEE_EXAMPLES_BUILDS) -type f -name "*acipher" | sed "s|\(.*\)|/bin/cp \1 $(NFS)/usr/bin/|g" >> copy.files
+	@find $(OPTEE_EXAMPLES_BUILDS) -type f -name "*aes" | sed "s|\(.*\)|/bin/cp \1 $(NFS)/usr/bin/|g" >> copy.files
+	@find $(OPTEE_EXAMPLES_BUILDS) -type f -name "*hello_world" | sed "s|\(.*\)|/bin/cp \1 $(NFS)/usr/bin/|g" >> copy.files
+	@find $(OPTEE_EXAMPLES_BUILDS) -type f -name "*hotp" | sed "s|\(.*\)|/bin/cp \1 $(NFS)/usr/bin/|g" >> copy.files
+	@find $(OPTEE_EXAMPLES_BUILDS) -type f -name "*random" | sed "s|\(.*\)|/bin/cp \1 $(NFS)/usr/bin/|g" >> copy.files
+	@find $(OPTEE_EXAMPLES_BUILDS) -type f -name "*secure_storage" | sed "s|\(.*\)|/bin/cp \1 $(NFS)/usr/bin/|g" >> copy.files
 	@#
 	@# optee_examples TA's
 	@find $(OPTEE_EXAMPLES_BUILDS) -type f -name "*.ta" | sed "s|\(.*\)|/bin/cp \1 $(NFS)/lib/optee_armtz/|g" >> copy.files
