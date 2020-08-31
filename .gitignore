@@ -1,0 +1,7 @@
+*.cscope
+GTAGS
+mkimage_imx8
+*.swp
+out/
+toolchains/
+firmware-imx-8.0*
