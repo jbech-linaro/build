@@ -50,7 +50,7 @@ $(BR_PATH)/.config:
 # build/kconfigs/br_imx8.conf file where a variable is used to find and set the
 # correct toolchain to use.
 buildroot: buildroot-defconfig
-	make -C $(BR_PATH) AARCH64_PATH=$(AARCH64_PATH) BR2_CCACHE_DIR="$(CCACHE_DIR)"
+	$(MAKE) -C $(BR_PATH) AARCH64_PATH=$(AARCH64_PATH) BR2_CCACHE_DIR="$(CCACHE_DIR)"
 
 .PHONY: buildroot-defconfig
 buildroot-defconfig: $(BR_PATH)/.config
@@ -63,7 +63,7 @@ buildroot-clean:
 ################################################################################
 mkimage: u-boot tfa ddr-firmware
 	ln -sf $(LPDDR_BIN_PATH)/lpddr4_pmu_train_*.bin $(MKIMAGE_PATH)/iMX8M/
-	make -C $(MKIMAGE_PATH) SOC=iMX8M flash_spl_uboot
+	$(MAKE) -C $(MKIMAGE_PATH) SOC=iMX8M flash_spl_uboot
 #> +If you want to run with HDMI, copy signed_hdmi_imx8m.bin to imx-mkimage/iMX8M
 #> +make SOC=iMX8M flash_spl_uboot or make SOC=iMX8M flash_hdmi_spl_uboot to
 #> +generate flash.bin.
@@ -87,7 +87,7 @@ $(LINUX_PATH)/.config: $(LINUX_DEFCONFIG_FILES)
 linux-defconfig: $(LINUX_PATH)/.config
 
 linux: linux-defconfig
-	make -C $(LINUX_PATH) ARCH=arm64 CROSS_COMPILE="$(CCACHE)$(AARCH64_CROSS_COMPILE)" Image dtbs
+	$(MAKE) -C $(LINUX_PATH) ARCH=arm64 CROSS_COMPILE="$(CCACHE)$(AARCH64_CROSS_COMPILE)" Image dtbs
 
 linux-clean:
 	cd $(LINUX_PATH) && git clean -xdf
