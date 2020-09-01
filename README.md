@@ -142,7 +142,6 @@ $ sudo apt install nfs-kernel-server
 A simple way is to take a Buildroot rootfs and put it locally, something like:
 ```
 $ mkdir -p /srv/nfs/imx
-$ buildroot/output/images/
 $ tar xvf <project_path>/imx8mqevk/buildroot/output/images/rootfs.tar -C /srv/nfs/imx
 ```
 
