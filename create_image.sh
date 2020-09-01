@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 
 IMAGENAME=imx8mqevk.img
-IMAGESIZE=256M
+IMAGESIZE=128M
 
 BOOT_IMG_PATH=/media/boot
 ROOTFS_PATH=/media/rootfs
@@ -10,7 +10,7 @@ ROOTFS_PATH=/media/rootfs
 truncate -s $IMAGESIZE $IMAGENAME
 
 # Create a partition table
-echo -ne "16384 64M 7\n147456 + 83\n" | sudo /usr/sbin/sfdisk $IMAGENAME
+echo -ne "16384 64M 7\n147456 + 83\n" | sudo sfdisk $IMAGENAME
 
 echo "If nothing seems to happen, then it's waiting for sudo password ..."
 sleep 2
@@ -30,16 +30,13 @@ sudo cp ../linux/arch/arm64/boot/dts/freescale/imx8mq-evk.dtb $BOOT_IMG_PATH/fsl
 sudo umount $BOOT_IMG_PATH
 
 # Put rootfs at the root fs partition
-#sudo mkdir -p $BOOT_IMG_PATH
-#sudo mount /dev/mapper/loop0p2 $ROOTFS_PATH
-#sudo cp ../imx-mkimage/iMX8M/fsl-imx8mq-evk.dtb $BOOT_IMG_PATH
-#sudo umount $ROOTFS_PATH
+sudo mkdir -p $ROOTFS_PATH
+sudo mount /dev/mapper/loop0p2 $ROOTFS_PATH
+sudo tar -xf ../buildroot/output/images/rootfs.tar -C $ROOTFS_PATH
+sudo umount $ROOTFS_PATH
 
 # Unmount the loop mounted partitions
 sudo kpartx -dv $IMAGENAME
 
 # Put the bootloader into the image
 sudo dd if=../imx-mkimage/iMX8M/flash.bin of=$IMAGENAME bs=1k seek=33 conv=fsync,notrunc
-
-#sudo dd if=$IMAGENAME | pv | sudo dd of=/dev/sdj bs=1M conv=fsync
-#sudo dd if=/media/jbech/TSHB_LINUX/devel/imx/imx8mqevk/imx-mkimage/iMX8M/flash.bin of=/dev/sdj bs=1k seek=33 conv=fsync

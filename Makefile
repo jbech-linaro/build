@@ -5,6 +5,7 @@ CCACHE ?= $(shell which ccache) # Don't remove this comment (space is needed)
 
 FIRMWARE_VERSION		?= firmware-imx-8.0
 
+BR_PATH				?= $(ROOT)/buildroot
 BUILD_PATH			?= $(ROOT)/build
 FIRMWARE_PATH			?= $(ROOT)/$(FIRMWARE_VERSION)
 FLASH_BIN_PATH			?= $(ROOT)/imx-mkimage/iMX8M
@@ -22,17 +23,40 @@ IMX8_IMAGE			?= $(BUILD_PATH)/imx8mqevk.img
 # URLs
 FIRMWARE_BIN_URL		?= https://www.nxp.com/lgfiles/NMG/MAD/YOCTO/$(FIRMWARE_BIN)
 
-DEBUG = 0
-PLATFORM ?= imx8mq
+DEBUG				?= 0
+PLATFORM			?= imx8mq
 
 ################################################################################
 # Targets
 ################################################################################
-all: linux tfa u-boot mkimage
-clean: flash-image linux-clean mkimage-clean tfa-clean u-boot-clean
+all: buildroot linux tfa u-boot mkimage
+clean: buildroot-clean flash-image-clean linux-clean mkimage-clean tfa-clean u-boot-clean
 dist-clean: clean ddr-firmare-clean
 
 include toolchain.mk
+
+################################################################################
+# Buildroot
+################################################################################
+BR_DEFCONFIG_FILES := $(BR_PATH)/configs/freescale_imx8mqevk_defconfig \
+		      $(BUILD_PATH)/kconfigs/br_imx8.conf
+
+$(BR_PATH)/.config:
+	cd $(BR_PATH) && \
+		support/kconfig/merge_config.sh \
+		$(BR_DEFCONFIG_FILES)
+
+# Note that the AARCH64_PATH here is necessary and it's used in the
+# build/kconfigs/br_imx8.conf file where a variable is used to find and set the
+# correct toolchain to use.
+buildroot: buildroot-defconfig
+	make -C $(BR_PATH) AARCH64_PATH=$(AARCH64_PATH) BR2_CCACHE_DIR="$(CCACHE_DIR)"
+
+.PHONY: buildroot-defconfig
+buildroot-defconfig: $(BR_PATH)/.config
+
+buildroot-clean:
+	cd $(BR_PATH) && git clean -xdf
 
 ################################################################################
 # imx-mkimage
@@ -47,23 +71,23 @@ mkimage-clean:
 	cd $(MKIMAGE_PATH) && git clean -xdf
 	rm -f $(ROOT)/mkimage_imx8
 
-
 ################################################################################
 # Linux kernel
 ################################################################################
 LINUX_DEFCONFIG_FILES := $(LINUX_PATH)/arch/arm64/configs/imx_v8_defconfig \
 			 $(BUILD_PATH)/kconfigs/imx8.conf
 
-#linux-defconfig:
-#	make -C $(LINUX_PATH) ARCH=arm64 imx_v8_defconfig
 
 $(LINUX_PATH)/.config: $(LINUX_DEFCONFIG_FILES)
 	cd $(LINUX_PATH) && \
                 ARCH=arm64 \
                 scripts/kconfig/merge_config.sh $(LINUX_DEFCONFIG_FILES)
 
-linux: $(LINUX_PATH)/.config
-	make -C $(LINUX_PATH) ARCH=arm64 -j`nproc` CROSS_COMPILE="$(CCACHE)$(AARCH64_CROSS_COMPILE)" Image dtbs
+.PHONY: linux-defconfig
+linux-defconfig: $(LINUX_PATH)/.config
+
+linux: linux-defconfig
+	make -C $(LINUX_PATH) ARCH=arm64 CROSS_COMPILE="$(CCACHE)$(AARCH64_CROSS_COMPILE)" Image dtbs
 
 linux-clean:
 	cd $(LINUX_PATH) && git clean -xdf
@@ -71,21 +95,17 @@ linux-clean:
 ################################################################################
 # Trusted Firmware A
 ################################################################################
-TF_A_EXPORTS ?= \
-	CROSS_COMPILE="$(CCACHE)$(AARCH64_CROSS_COMPILE)"
-
-TF_A_DEBUG ?= $(DEBUG)
+TF_A_EXPORTS 		?= CROSS_COMPILE="$(CCACHE)$(AARCH64_CROSS_COMPILE)"
+TF_A_DEBUG 		?= $(DEBUG)
 ifeq ($(TF_A_DEBUG),0)
-TF_A_LOGLVL ?= 30
-TF_A_OUT = $(TF_A_PATH)/build/$(PLATFORM)/release
+TF_A_LOGLVL		?= 30
+TF_A_OUT		= $(TF_A_PATH)/build/$(PLATFORM)/release
 else
-TF_A_LOGLVL ?= 50
-TF_A_OUT = $(TF_A_PATH)/build/$(PLATFORM)/debug
+TF_A_LOGLVL		?= 50
+TF_A_OUT		= $(TF_A_PATH)/build/$(PLATFORM)/debug
 endif
 
-TF_A_FLAGS ?= \
-	PLAT=$(PLATFORM) bl31 \
-	DEBUG=$(DEBUG)
+TF_A_FLAGS ?=		PLAT=$(PLATFORM) bl31 DEBUG=$(DEBUG)
 
 tfa: u-boot
 	$(TF_A_EXPORTS) $(MAKE) -C $(TF_A_PATH) $(TF_A_FLAGS) all fip
