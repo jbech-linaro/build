@@ -74,7 +74,7 @@ mkimage-clean:
 ################################################################################
 # Linux kernel
 ################################################################################
-LINUX_DEFCONFIG_FILES := $(LINUX_PATH)/arch/arm64/configs/imx_v8_defconfig \
+LINUX_DEFCONFIG_FILES := $(LINUX_PATH)/arch/arm64/configs/defconfig \
 			 $(BUILD_PATH)/kconfigs/imx8.conf
 
 
@@ -119,13 +119,26 @@ tfa-clean:
 ################################################################################
 U-BOOT_EXPORTS ?= CROSS_COMPILE="$(CCACHE)$(AARCH64_CROSS_COMPILE)"
 
-.PHONY: u-boot
-u-boot:
+U-BOOT_DEFCONFIG_FILES := $(U-BOOT_PATH)/configs/imx8mq_evk_defconfig \
+			  $(BUILD_PATH)/kconfigs/uboot_imx8.conf
+
+$(U-BOOT_PATH)/.config: $(U-BOOT_DEFCONFIG_FILES)
 	$(U-BOOT_EXPORTS) $(MAKE) -C $(U-BOOT_PATH) imx8mq_evk_defconfig
-	$(U-BOOT_EXPORTS) $(MAKE) -C $(U-BOOT_PATH) all
+	cd $(U-BOOT_PATH) && \
+                ARCH=arm64 \
+                scripts/kconfig/merge_config.sh $(U-BOOT_DEFCONFIG_FILES)
+
+.PHONY: u-boot-defconfig
+u-boot-defconfig: $(U-BOOT_PATH)/.config
+
+# The imx8mq-evk.dtb in the symlink below needs to be copied with prefix
+# "fsl-", since the imx-mkimage later on refers to the dtb with that prefix.
+.PHONY: u-boot
+u-boot: u-boot-defconfig
+	$(U-BOOT_EXPORTS) $(MAKE) -C $(U-BOOT_PATH)
 	ln -sf $(U-BOOT_PATH)/u-boot-nodtb.bin                 $(MKIMAGE_PATH)/iMX8M/
 	ln -sf $(U-BOOT_PATH)/spl/u-boot-spl.bin               $(MKIMAGE_PATH)/iMX8M/
-	ln -sf $(U-BOOT_PATH)/arch/arm/dts/fsl-imx8mq-evk.dtb  $(MKIMAGE_PATH)/iMX8M/
+	ln -sf $(U-BOOT_PATH)/arch/arm/dts/imx8mq-evk.dtb      $(MKIMAGE_PATH)/iMX8M/fsl-imx8mq-evk.dtb
 	ln -sf $(U-BOOT_PATH)/tools/mkimage                    $(MKIMAGE_PATH)/iMX8M/mkimage_uboot
 
 .PHONY: u-boot-clean

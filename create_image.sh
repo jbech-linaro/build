@@ -26,7 +26,7 @@ sudo mkfs.ext4 /dev/mapper/loop0p2
 sudo mkdir -p $BOOT_IMG_PATH
 sudo mount /dev/mapper/loop0p1 $BOOT_IMG_PATH
 sudo cp ../linux/arch/arm64/boot/Image $BOOT_IMG_PATH
-sudo cp ../linux/arch/arm64/boot/dts/freescale/imx8mq-evk.dtb $BOOT_IMG_PATH/fsl-imx8mq-evk.dtb
+sudo cp ../linux/arch/arm64/boot/dts/freescale/imx8mq-evk.dtb $BOOT_IMG_PATH
 sudo umount $BOOT_IMG_PATH
 
 # Put rootfs at the root fs partition
