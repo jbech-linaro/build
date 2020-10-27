@@ -17,6 +17,11 @@ for installation instructions.
 $ repo init -u https://github.com/jbech-linaro/manifest.git -b imx8mqevk
 ```
 
+Next sync the actual tree
+```
+$ repo sync -j4
+```
+
 Get the toolchain (GCC, only 64bit is used, but you'll get a 32bit GCC as well).
 ```
 $ make -j2 toolchains
