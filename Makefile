@@ -4,7 +4,6 @@
 # 4. Provide default rootfs
 # 5. Create rootfs
 # 6. Run Image and/or Image.gz
-# 7. Dump QEMU dtb
 # 8. Load and pass QEMU DTB
 # 9. Modify DTB
 # 10. Create boot.scr or uboot.env
@@ -36,6 +35,7 @@ KERNEL				?= $(LINUX_PATH)/arch/arm64/boot/Image
 KERNEL_UIMAGE			?= $(OUT_PATH)/uImage
 LINUX_VMLINUX			?= $(LINUX_PATH)/vmlinux
 QEMU_BIN			?= $(QEMU_PATH)/aarch64-softmmu/qemu-system-aarch64
+QEMU_DTB			?= $(OUT_PATH)/qemu-aarch64.dtb
 ROOTFS				?= $(OUT_PATH)/rootfs.cpio.gz
 UROOTFS				?= $(OUT_PATH)/urootfs.cpio.gz
 
@@ -76,6 +76,10 @@ linux-menuconfig: $(LINUX_PATH)/.config
 linux-clean:
 	cd $(LINUX_PATH) && git clean -xdf
 
+.PHONY: linux-cscope
+linux-cscope:
+	$(MAKE) -C $(LINUX_PATH) cscope
+
 ################################################################################
 # QEMU
 ################################################################################
@@ -92,6 +96,10 @@ qemu: qemu-configure
 qemu-clean:
 	cd $(QEMU_PATH) && git clean -xdf
 
+dump-dtb:
+	$(QEMU_BIN) -machine virt \
+		-cpu cortex-a57 \
+		-machine dumpdtb=$(QEMU_DTB)
 
 create-env-image:
 	@if [ ! -f $(OUT_PATH)/envstore.img ]; then \
@@ -138,13 +146,13 @@ urootfs:
 ################################################################################
 # U-boot
 ################################################################################
-UBOOT_EXPORTS ?= CROSS_COMPILE="$(CCACHE)$(AARCH64_CROSS_COMPILE)"
-
 #UBOOT_DEFCONFIG_FILES := $(UBOOT_PATH)/configs/imx8mq_evk_defconfig \
 #			  $(BUILD_PATH)/kconfigs/uboot_imx8.conf
 
 $(UBOOT_PATH)/.config:
-	$(MAKE) $(UBOOT_EXPORTS) -C $(UBOOT_PATH) qemu_arm64_defconfig
+	$(MAKE) -C $(UBOOT_PATH) \
+		CROSS_COMPILE="$(CCACHE)$(AARCH64_CROSS_COMPILE)" \
+		qemu_arm64_defconfig
 
 .PHONY: uboot-defconfig
 uboot-defconfig: $(UBOOT_PATH)/.config
@@ -152,12 +160,15 @@ uboot-defconfig: $(UBOOT_PATH)/.config
 .PHONY: uboot
 uboot: uboot-defconfig
 	mkdir -p $(OUT_PATH) && \
-		$(MAKE) $(UBOOT_EXPORTS) -C $(UBOOT_PATH) && \
+		$(MAKE) -C $(UBOOT_PATH) \
+			CROSS_COMPILE="$(CCACHE)$(AARCH64_CROSS_COMPILE)" && \
 		ln -sf $(BIOS) $(OUT_PATH)/
 
 .PHONY: uboot-menuconfig
 uboot-menuconfig: uboot-defconfig
-	$(MAKE) $(UBOOT_EXPORTS) -C $(UBOOT_PATH) menuconfig
+	$(MAKE) -C $(UBOOT_PATH) \
+		CROSS_COMPILE="$(CCACHE)$(AARCH64_CROSS_COMPILE)" \
+		menuconfig
 
 .PHONY: uboot-clean
 uboot-clean:
@@ -165,7 +176,7 @@ uboot-clean:
 
 .PHONY: uboot-cscope
 uboot-cscope:
-	$(MAKE) $(UBOOT_EXPORTS) -C $(UBOOT_PATH) cscope
+	$(MAKE) -C $(UBOOT_PATH) cscope
 
 ################################################################################
 # Run targets
@@ -183,13 +194,15 @@ QEMU_ARGS	+= -nographic \
 
 ifeq ($(GDB),y)
 QEMU_ARGS	+= -s -S
+
+# For convenience, setup path to gdb
+$(shell ln -sf $(AARCH64_PATH)/bin/aarch64-none-linux-gnu-gdb $(ROOT)/gdb)
 endif
 
 # Target to run U-boot and Linux kernel where U-boot is the bios and the kernel
 # is pulled from the block device.
 .PHONY: run
 run: create-env-image
-	#$(QEMU_PATH)/aarch64-softmmu/qemu-system-aarch64
 	cd $(OUT_PATH) && \
 	$(QEMU_BIN) \
 		$(QEMU_ARGS) \
