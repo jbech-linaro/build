@@ -1,14 +1,9 @@
 # Todo
-# 2. enable menuconfig / merge from Linux
 # 3. Enable ordinary boot w/o tftp
-# 4. Provide default rootfs
-# 5. Create rootfs
 # 6. Run Image and/or Image.gz
 # 8. Load and pass QEMU DTB
 # 9. Modify DTB
 # 10. Create boot.scr or uboot.env
-# 11. Compile QEMU
-# 12: Make kernel / rootfs mkimage configurable
 
 ################################################################################
 # Paths to git projects and various binaries
@@ -18,6 +13,7 @@ CCACHE ?= $(shell which ccache) # Don't remove this comment (space is needed)
 ROOT				?= $(PWD)
 
 BUILD_PATH			?= $(ROOT)/build
+BR_PATH				?= $(ROOT)/buildroot
 LINUX_PATH			?= $(ROOT)/linux
 OUT_PATH			?= $(ROOT)/out
 QEMU_PATH			?= $(ROOT)/qemu
@@ -36,34 +32,50 @@ KERNEL_UIMAGE			?= $(OUT_PATH)/uImage
 LINUX_VMLINUX			?= $(LINUX_PATH)/vmlinux
 QEMU_BIN			?= $(QEMU_PATH)/aarch64-softmmu/qemu-system-aarch64
 QEMU_DTB			?= $(OUT_PATH)/qemu-aarch64.dtb
+QEMU_ENV			?= $(OUT_PATH)/envstore.img
 ROOTFS				?= $(OUT_PATH)/rootfs.cpio.gz
 UROOTFS				?= $(OUT_PATH)/urootfs.cpio.gz
 
 ################################################################################
 # Targets
 ################################################################################
+.PHONY: all
 all: linux qemu uboot
 
 include toolchain.mk
 
+#################################################################################
+## Buildroot
+#################################################################################
+BR_DEFCONFIG_FILES := $(BUILD_PATH)/br_kconfigs/br_qemu_aarch64_virt.conf
+$(BR_PATH)/.config:
+	cd $(BR_PATH) && \
+	support/kconfig/merge_config.sh \
+	$(BR_DEFCONFIG_FILES)
+
+# Note that the AARCH64_PATH here is necessary and it's used in the
+# br_kconfigs/br_qemu_aarch64_virt.conf file where a variable is used to find
+# and set the # correct toolchain to use.
+.PHONY: buildroot
+buildroot: $(BR_PATH)/.config
+	$(MAKE) -C $(BR_PATH) \
+		AARCH64_PATH=$(AARCH64_PATH) \
+		BR2_CCACHE_DIR="$(CCACHE_DIR)"
+
+.PHONY: buildroot-clean
+buildroot-clean:
+	cd $(BR_PATH) && git clean -xdf
+
 ################################################################################
 # Linux kernel
 ################################################################################
-#LINUX_DEFCONFIG_FILES := $(LINUX_PATH)/arch/arm64/configs/defconfig \
-#			 $(CONFIG_FRAGMENT)
-#
-#$(LINUX_PATH)/.config: $(LINUX_DEFCONFIG_FILES)
-#	cd $(LINUX_PATH) && \
-#                yes | ARCH=arm64 \
-#                scripts/kconfig/merge_config.sh $(LINUX_DEFCONFIG_FILES)
-
 $(LINUX_PATH)/.config:
 	$(MAKE) -C $(LINUX_PATH) \
 		ARCH=arm64 \ 
 		CROSS_COMPILE="$(CCACHE)$(AARCH64_CROSS_COMPILE)" \
 		defconfig
 
-
+.PHONY: linux
 linux: $(LINUX_PATH)/.config
 	$(MAKE) -C $(LINUX_PATH) \
 		ARCH=arm64 CROSS_COMPILE="$(CCACHE)$(AARCH64_CROSS_COMPILE)" \
@@ -71,8 +83,9 @@ linux: $(LINUX_PATH)/.config
 
 .PHONY: linux-menuconfig
 linux-menuconfig: $(LINUX_PATH)/.config
-	$(MAKE) -C $(LINUX_PATH) menuconfig
+	$(MAKE) -C $(LINUX_PATH) ARCH=arm64 menuconfig
 
+.PHONY: linux-clean
 linux-clean:
 	cd $(LINUX_PATH) && git clean -xdf
 
@@ -90,9 +103,11 @@ qemu-configure:
 		--extra-cflags="-Wno-error" \
 		--enable-virtfs
 
+.PHONY: qemu
 qemu: qemu-configure
 	make -C $(QEMU_PATH)
 
+.PHONY: qemu-clean
 qemu-clean:
 	cd $(QEMU_PATH) && git clean -xdf
 
@@ -102,9 +117,9 @@ dump-dtb:
 		-machine dumpdtb=$(QEMU_DTB)
 
 create-env-image:
-	@if [ ! -f $(OUT_PATH)/envstore.img ]; then \
+	@if [ ! -f $(QEMU_ENV) ]; then \
 		echo "Creating envstore image ..."; \
-		qemu-img create -f raw $(OUT_PATH)/envstore.img 64M; \
+		qemu-img create -f raw $(QEMU_ENV) 64M; \
 	fi
 
 ################################################################################
@@ -146,23 +161,17 @@ urootfs:
 ################################################################################
 # U-boot
 ################################################################################
-#UBOOT_DEFCONFIG_FILES := $(UBOOT_PATH)/configs/imx8mq_evk_defconfig \
-#			  $(BUILD_PATH)/kconfigs/uboot_imx8.conf
-
 $(UBOOT_PATH)/.config:
 	$(MAKE) -C $(UBOOT_PATH) \
 		CROSS_COMPILE="$(CCACHE)$(AARCH64_CROSS_COMPILE)" \
 		qemu_arm64_defconfig
 
-.PHONY: uboot-defconfig
-uboot-defconfig: $(UBOOT_PATH)/.config
-
 .PHONY: uboot
-uboot: uboot-defconfig
+uboot: $(UBOOT_PATH)/.config
 	mkdir -p $(OUT_PATH) && \
-		$(MAKE) -C $(UBOOT_PATH) \
-			CROSS_COMPILE="$(CCACHE)$(AARCH64_CROSS_COMPILE)" && \
-		ln -sf $(BIOS) $(OUT_PATH)/
+	$(MAKE) -C $(UBOOT_PATH) \
+		CROSS_COMPILE="$(CCACHE)$(AARCH64_CROSS_COMPILE)" && \
+	ln -sf $(BIOS) $(OUT_PATH)/
 
 .PHONY: uboot-menuconfig
 uboot-menuconfig: uboot-defconfig
@@ -251,34 +260,8 @@ run-kernel-initrd:
 # Clean
 ################################################################################
 .PHONY: clean
-clean: linux-clean qemu-clean uboot-clean
+clean: buildroot-clean linux-clean qemu-clean uboot-clean
 
 .PHONY: distclean
 distclean: clean
 	rm -rf $(OUT_PATH)
-
-
-#################################################################################
-## Buildroot
-#################################################################################
-#BR_DEFCONFIG_FILES := $(BR_PATH)/configs/freescale_imx8mqevk_defconfig \
-#		      $(BUILD_PATH)/kconfigs/br_imx8.conf
-#
-#$(BR_PATH)/.config:
-#	cd $(BR_PATH) && \
-#		support/kconfig/merge_config.sh \
-#		$(BR_DEFCONFIG_FILES)
-#
-## Note that the AARCH64_PATH here is necessary and it's used in the
-## build/kconfigs/br_imx8.conf file where a variable is used to find and set the
-## correct toolchain to use.
-#buildroot: buildroot-defconfig
-#	$(MAKE) -C $(BR_PATH) AARCH64_PATH=$(AARCH64_PATH) BR2_CCACHE_DIR="$(CCACHE_DIR)"
-#
-#.PHONY: buildroot-defconfig
-#buildroot-defconfig: $(BR_PATH)/.config
-#
-#buildroot-clean:
-#	cd $(BR_PATH) && git clean -xdf
-
-
