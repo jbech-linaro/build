@@ -194,6 +194,9 @@ $(CURDIR)/copy.files:
 	@# Libteec.so
 	@find $(OPTEE_CLIENT_BUILDS) -type f -name "libteec.so*" | sed "s|\(.*\)|/bin/cp \1 $(NFS)/lib/|g" >> copy.files
 	@#
+	@# libckteec.so (note type -l here to also copy whatever the symlink points to)
+	@find $(OPTEE_CLIENT_BUILDS) -type l -name "libckteec.so*" | sed "s|\(.*\)|/bin/cp \1 $(NFS)/lib/|g" >> copy.files
+	@#
 	@# optee_examples host
 	@find $(OPTEE_EXAMPLES_BUILDS) -type f -name "*acipher" | sed "s|\(.*\)|/bin/cp \1 $(NFS)/usr/bin/|g" >> copy.files
 	@find $(OPTEE_EXAMPLES_BUILDS) -type f -name "*aes" | sed "s|\(.*\)|/bin/cp \1 $(NFS)/usr/bin/|g" >> copy.files
