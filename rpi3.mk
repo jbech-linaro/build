@@ -173,9 +173,9 @@ update_rootfs: arm-tf linux u-boot
 	@install -v -p --mode=755 $(RPI3_STOCK_FW_PATH)/boot/start_x.elf $(BUILDROOT_TARGET_ROOT)/boot/start_x.elf
 	@cd $(MODULE_OUTPUT) && find . | cpio -pudm $(BUILDROOT_TARGET_ROOT)
 
-OPTEE_TEST_BUILDS=$(ROOT)/out-br/build/optee_test-1.0
-OPTEE_CLIENT_BUILDS=$(ROOT)/out-br/build/optee_client-1.0
-OPTEE_EXAMPLES_BUILDS=$(ROOT)/out-br/build/optee_examples-1.0
+OPTEE_TEST_BUILDS=$(ROOT)/out-br/build/optee_test_ext-1.0
+OPTEE_CLIENT_BUILDS=$(ROOT)/out-br/build/optee_client_ext-1.0
+OPTEE_EXAMPLES_BUILDS=$(ROOT)/out-br/build/optee_examples_ext-1.0
 
 $(CURDIR)/copy.files:
 	@echo "Creating $(shell basename $@)"
