@@ -5,7 +5,7 @@
 	#address-cells = <1>;
 
 	images {
-		kernel {
+		kernel-1 {
 			description = "Vanilla Linux kernel";
 			data = /incbin/("../../linux/arch/arm64/boot/Image");
 			type = "kernel";
@@ -20,13 +20,24 @@
 			hash-2 {
 				algo = "sha1";
 			};
-			signature-@1 {
+			signature-1 {
 				algo = "sha1,rsa2048";
 				key-name-hint = "private";
 			};
 		};
 
-		fdt {
+		kernel-2 {
+			description = "Vanilla Linux kernel (unverified)";
+			data = /incbin/("../../linux/arch/arm64/boot/Image");
+			type = "kernel";
+			arch = "arm64";
+			os = "linux";
+			compression = "none";
+			load = <0x40400000>;
+			entry = <0x40400000>;
+		};
+
+		fdt-1 {
 			description = "QEMU DTB (dumped from QEMU itself)";
 			data = /incbin/("../../out/qemu-aarch64.dtb");
 			type = "flat_dt";
@@ -39,7 +50,7 @@
 			};
 		};
 
-		ramdisk {
+		ramdisk-1 {
 			description = "Ramdisk";
 			data = /incbin/("../../out/rootfs.cpio.gz");
 			type = "ramdisk";
@@ -58,9 +69,15 @@
 		default = "config-1";
 		config-1 {
 			description = "Boot Linux kernel with a QEMU DTB";
-			kernel = "kernel";
-			fdt = "fdt";
-			ramdisk = "ramdisk";
+			kernel = "kernel-1";
+			fdt = "fdt-1";
+			ramdisk = "ramdisk-1";
+		};
+		config-2 {
+			description = "Boot Linux kernel with a QEMU DTB (no checks)";
+			kernel = "kernel-2";
+			fdt = "fdt-1";
+			ramdisk = "ramdisk-1";
 		};
 	};
 };
