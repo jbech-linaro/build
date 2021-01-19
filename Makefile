@@ -147,15 +147,17 @@ qemu: qemu-configure
 qemu-clean:
 	cd $(QEMU_PATH) && git clean -xdf
 
-$(QEMU_DTB): dump-dtb
-
-dump-dtb:
+$(QEMU_DTB):
 	$(QEMU_BIN) -machine virt \
 		-cpu cortex-a57 \
 		-machine dumpdtb=$(QEMU_DTB)
 
-dump-dtb-as-dts: dump-dtb
+dump-dtb: $(QEMU_DTB)
+
+$(QEMU_DTS): dump-dtb
 	$(DTC) -I dtb -O dts $(QEMU_DTB) > $(QEMU_DTS)
+
+dump-dtb-as-dts: $(QEMU_DTS)
 
 create-env-image:
 	@if [ ! -f $(QEMU_ENV) ]; then \
