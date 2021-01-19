@@ -1,9 +1,9 @@
 # Todo
-# 3. Enable ordinary boot w/o tftp
-# 6. Run Image and/or Image.gz
-# 8. Load and pass QEMU DTB
-# 9. Modify DTB
-# 10. Create boot.scr or uboot.env
+# 1. Enable ordinary boot w/o tftp
+# 2. Run Image and/or Image.gz
+# 3. Modify DTB
+# 4. Create boot.scr or uboot.env
+
 
 ################################################################################
 # Paths to git projects and various binaries
@@ -12,44 +12,48 @@ CCACHE ?= $(shell which ccache) # Don't remove this comment (space is needed)
 
 ROOT				?= $(PWD)
 
-BUILD_PATH			?= $(ROOT)/build
-BR_PATH				?= $(ROOT)/buildroot
 BR_DL_DIR			?= $(HOME)/br_download
+BR_PATH				?= $(ROOT)/buildroot
+BUILD_PATH			?= $(ROOT)/build
 LINUX_PATH			?= $(ROOT)/linux
+MKIMAGE_PATH			?= $(UBOOT_PATH)/tools
 OUT_PATH			?= $(ROOT)/out
 QEMU_PATH			?= $(ROOT)/qemu
 UBOOT_PATH			?= $(ROOT)/u-boot
-MKIMAGE_PATH			?= $(UBOOT_PATH)/tools
 
 DEBUG				?= n
 PLATFORM			?= qemu
 CCACHE_DIR			?= $(HOME)/.ccache
 
-# Binaries
+# Binaries and general files
 BIOS				?= $(UBOOT_PATH)/u-boot.bin
-CONFIG_FRAGMENT			?= $(BUILD_PATH)/.config-fragment
 DTC				?= $(LINUX_PATH)/scripts/dtc/dtc
-FITB				?= $(OUT_PATH)/kernel.itb
-FITS				?= $(BUILD_PATH)/fit/kernel.its
-KERNEL				?= $(LINUX_PATH)/arch/arm64/boot/Image
-KERNELZ				?= $(LINUX_PATH)/arch/arm64/boot/Image.gz
+FITIMAGE			?= $(OUT_PATH)/image.fit
+FITIMAGE_SRC			?= $(BUILD_PATH)/fit/fit.its
+KERNEL_IMAGE			?= $(LINUX_PATH)/arch/arm64/boot/Image
+KERNEL_IMAGEGZ			?= $(LINUX_PATH)/arch/arm64/boot/Image.gz
 KERNEL_UIMAGE			?= $(OUT_PATH)/uImage
-LINUX_VMLINUX			?= $(LINUX_PATH)/vmlinux
 QEMU_BIN			?= $(QEMU_PATH)/aarch64-softmmu/qemu-system-aarch64
 QEMU_DTB			?= $(OUT_PATH)/qemu-aarch64.dtb
 QEMU_DTS			?= $(OUT_PATH)/qemu-aarch64.dts
 QEMU_ENV			?= $(OUT_PATH)/envstore.img
-ROOTFS				?= $(BR_PATH)/output/images/rootfs.cpio.gz
-UROOTFS				?= $(BR_PATH)/output/images/rootfs.cpio.uboot
+ROOTFS_GZ			?= $(BR_PATH)/output/images/rootfs.cpio.gz
+ROOTFS_UGZ			?= $(BR_PATH)/output/images/rootfs.cpio.uboot
+
+# Load and entry addresses
+KERNEL_ENTRY			?= 0x40400000
+KERNEL_LOADADDR			?= 0x40400000
+ROOTFS_ENTRY			?= 0x44000000
+ROOTFS_LOADADDR			?= 0x44000000
 
 # Keys
-# Note that KEY_SIZE is also set in the fit/u-boot_pubkey.dts, that has to be
-# adjusted accordingly.
+# Note that KEY_SIZE is also set in the FITIMAGE_SRC, that has to be adjusted
+# accordingly.
 KEY_SIZE			?= 2048
-PRIVATE_KEY			?= $(OUT_PATH)/private.key
+CONTROL_FDT_DTB			?= $(OUT_PATH)/control-fdt.dtb
+CONTROL_FDT_DTS			?= $(BUILD_PATH)/fit/control-fdt.dts
 CERTIFICATE			?= $(OUT_PATH)/private.crt
-PUBKEY_DTS			?= $(BUILD_PATH)/fit/u-boot_pubkey.dts
-PUBKEY_DTB			?= $(OUT_PATH)/u-boot_pubkey.dtb
+PRIVATE_KEY			?= $(OUT_PATH)/private.key
 
 
 ################################################################################
@@ -62,13 +66,15 @@ ifeq ($(wildcard ./.repo), )
 $(error Make should be run from the root of the project!)
 endif
 
+
 ################################################################################
 # Targets
 ################################################################################
 .PHONY: all
-all: linux qemu uboot buildroot
+all: linux qemu uboot buildroot fit
 
 include toolchain.mk
+
 
 #################################################################################
 ## Buildroot
@@ -82,52 +88,50 @@ $(BR_PATH)/.config:
 # Note that the AARCH64_PATH here is necessary and it's used in the
 # br_kconfigs/br_qemu_aarch64_virt.conf file where a variable is used to find
 # and set the # correct toolchain to use.
-.PHONY: buildroot
 buildroot: $(BR_PATH)/.config
 	mkdir -p $(OUT_PATH)
 	$(MAKE) -C $(BR_PATH) \
 		BR2_CCACHE_DIR="$(CCACHE_DIR)" \
 		AARCH64_PATH=$(AARCH64_PATH)
-	ln -sf $(ROOTFS) $(OUT_PATH)/ && \
-	ln -sf $(UROOTFS) $(OUT_PATH)/
+	ln -sf $(ROOTFS_GZ) $(OUT_PATH)/ && \
+	ln -sf $(ROOTFS_UGZ) $(OUT_PATH)/
 
 .PHONY: buildroot-clean
 buildroot-clean:
 	cd $(BR_PATH) && git clean -xdf
+
 
 ################################################################################
 # Linux kernel
 ################################################################################
 LINUX_DEFCONFIG_FILES := $(LINUX_PATH)/arch/arm64/configs/defconfig
 
-
 $(LINUX_PATH)/.config: $(LINUX_DEFCONFIG_FILES)
 	cd $(LINUX_PATH) && \
                 ARCH=arm64 \
                 scripts/kconfig/merge_config.sh $(LINUX_DEFCONFIG_FILES)
 
-.PHONY: linux-defconfig
 linux-defconfig: $(LINUX_PATH)/.config
 
-.PHONY: linux
 linux: linux-defconfig
 	yes | $(MAKE) -C $(LINUX_PATH) \
 		ARCH=arm64 CROSS_COMPILE="$(CCACHE)$(AARCH64_CROSS_COMPILE)" \
 		Image.gz dtbs && \
-	ln -sf $(KERNEL) $(OUT_PATH)/ && \
-	ln -sf $(KERNELZ) $(OUT_PATH)/
+	ln -sf $(KERNEL_IMAGE) $(OUT_PATH)/ && \
+	ln -sf $(KERNEL_IMAGEGZ) $(OUT_PATH)/
 
 .PHONY: linux-menuconfig
 linux-menuconfig: $(LINUX_PATH)/.config
 	$(MAKE) -C $(LINUX_PATH) ARCH=arm64 menuconfig
 
+.PHONY: linux-cscope
+linux-cscope:
+	$(MAKE) -C $(LINUX_PATH) cscope
+
 .PHONY: linux-clean
 linux-clean:
 	cd $(LINUX_PATH) && git clean -xdf
 
-.PHONY: linux-cscope
-linux-cscope:
-	$(MAKE) -C $(LINUX_PATH) cscope
 
 ################################################################################
 # QEMU
@@ -139,52 +143,48 @@ qemu-configure:
 		--extra-cflags="-Wno-error" \
 		--enable-virtfs
 
-.PHONY: qemu
 qemu: qemu-configure
 	make -C $(QEMU_PATH)
-
-.PHONY: qemu-clean
-qemu-clean:
-	cd $(QEMU_PATH) && git clean -xdf
 
 $(QEMU_DTB):
 	$(QEMU_BIN) -machine virt \
 		-cpu cortex-a57 \
 		-machine dumpdtb=$(QEMU_DTB)
 
-dump-dtb: $(QEMU_DTB)
+qemu-dump-dtb: $(QEMU_DTB)
 
-$(QEMU_DTS): dump-dtb
+$(QEMU_DTS): qemu-dump-dtb
 	$(DTC) -I dtb -O dts $(QEMU_DTB) > $(QEMU_DTS)
 
-dump-dtb-as-dts: $(QEMU_DTS)
+qemu-dump-dts: $(QEMU_DTS)
 
-create-env-image:
+qemu-create-env-image:
 	@if [ ! -f $(QEMU_ENV) ]; then \
 		echo "Creating envstore image ..."; \
 		qemu-img create -f raw $(QEMU_ENV) 64M; \
 	fi
 
-mount_command:
+qemu_mount_command:
 	@echo "Run this in QEMU / Linux / Buildroot:"
 	@echo "  mkdir /host && mount -t 9p -o trans=virtio host /host"
 	@echo "\nOnce done, you can access the host PC's files"
 
+.PHONY: qemu-clean
+qemu-clean:
+	cd $(QEMU_PATH) && git clean -xdf
+
+
 ################################################################################
 # mkimage
 ################################################################################
-uboot-images: uimage urootfs
-
-KERNEL_ENTRY	?= 0x40400000
-KERNEL_LOADADDR ?= 0x40400000
-ROOTFS_ENTRY	?= 0x44000000
-ROOTFS_LOADADDR ?= 0x44000000
-
-# TODO: The linux.bin thing probably isn't necessary.
-.PHONY: uimage
-uimage: $(KERNEL)
+# FIXME: The linux.bin thing probably isn't necessary.
+uimage: $(KERNEL_IMAGE)
 	mkdir -p $(OUT_PATH) && \
-	${AARCH64_CROSS_COMPILE}objcopy -O binary -R .note -R .comment -S $(LINUX_PATH)/vmlinux $(OUT_PATH)/linux.bin && \
+	${AARCH64_CROSS_COMPILE}objcopy -O binary \
+					-R .note \
+					-R .comment \
+					-S $(LINUX_PATH)/vmlinux \
+					$(OUT_PATH)/linux.bin && \
 	$(MKIMAGE_PATH)/mkimage -A arm64 \
 				-O linux \
 				-T kernel \
@@ -194,8 +194,7 @@ uimage: $(KERNEL)
 				-n "Linux kernel" \
 				-d $(OUT_PATH)/linux.bin $(KERNEL_UIMAGE)
 
-# FIXME: Names clashes ROOTFS and UROOTFS, this will overwrite the u-rootfs from Buildroot.
-.PHONY: urootfs
+# FIXME: Names clashes ROOTFS_GZ and ROOTFS_UGZ, this will overwrite the u-rootfs from Buildroot.
 urootfs:
 	mkdir -p $(OUT_PATH) && \
 	$(MKIMAGE_PATH)/mkimage -A arm64 \
@@ -204,11 +203,21 @@ urootfs:
 				-a $(ROOTFS_LOADADDR) \
 				-e $(ROOTFS_ENTRY) \
 				-n "Root files system" \
-				-d $(ROOTFS) $(UROOTFS)
+				-d $(ROOTFS_GZ) $(ROOTFS_UGZ)
 
-fit: $(ROOTFS) $(QEMU_DTB) linux
+fit: $(ROOTFS_GZ) $(QEMU_DTB) linux
 	mkdir -p $(OUT_PATH) && \
-	$(MKIMAGE_PATH)/mkimage -f $(FITS) $(FITB)
+	$(MKIMAGE_PATH)/mkimage -f $(FITIMAGE_SRC) \
+				$(FITIMAGE)
+
+fit-signed: $(ROOTFS_GZ) $(QEMU_DTB) linux generate-control-fdt
+	mkdir -p $(OUT_PATH) && \
+	$(MKIMAGE_PATH)/mkimage -f $(FITIMAGE_SRC) \
+				-K $(CONTROL_FDT_DTB) \
+				-k $(OUT_PATH) \
+				-r \
+				$(FITIMAGE)
+
 
 ################################################################################
 # U-boot
@@ -216,17 +225,15 @@ fit: $(ROOTFS) $(QEMU_DTB) linux
 UBOOT_DEFCONFIG_FILES	:= $(UBOOT_PATH)/configs/qemu_arm64_defconfig
 
 ifeq ($(SIGN),y)
-UBOOT_EXTRA_ARGS	?= EXT_DTB=$(PUBKEY_DTB)
+UBOOT_EXTRA_ARGS	?= EXT_DTB=$(CONTROL_FDT_DTB)
 endif
 
 $(UBOOT_PATH)/.config: $(UBOOT_DEFCONFIG_FILES)
 	cd $(UBOOT_PATH) && \
                 scripts/kconfig/merge_config.sh $(UBOOT_DEFCONFIG_FILES)
 
-.PHONY: uboot-defconfig
 uboot-defconfig: $(UBOOT_PATH)/.config
 
-.PHONY: uboot
 uboot: uboot-defconfig
 	mkdir -p $(OUT_PATH) && \
 	$(MAKE) -C $(UBOOT_PATH) \
@@ -240,13 +247,14 @@ uboot-menuconfig: uboot-defconfig
 		CROSS_COMPILE="$(CCACHE)$(AARCH64_CROSS_COMPILE)" \
 		menuconfig
 
+.PHONY: uboot-cscope
+uboot-cscope:
+	$(MAKE) -C $(UBOOT_PATH) cscope
+
 .PHONY: uboot-clean
 uboot-clean:
 	cd $(UBOOT_PATH) && git clean -xdf
 
-.PHONY: uboot-cscope
-uboot-cscope:
-	$(MAKE) -C $(UBOOT_PATH) cscope
 
 ################################################################################
 # Keys, signatures etc
@@ -261,23 +269,19 @@ $(CERTIFICATE): | generate-keys
 
 generate-certificate: $(CERTIFICATE)
 
+$(CONTROL_FDT_DTB):
+	$(DTC) $(CONTROL_FDT_DTS) -O dtb -o $(CONTROL_FDT_DTB)
+
+generate-control-fdt: $(CONTROL_FDT_DTB)
+
 keys-clean:
-	rm -rf $(PRIVATE_KEY) $(CERTIFICATE)
+	rm -f $(PRIVATE_KEY) $(CONTROL_FDT_DTB) $(CERTIFICATE)
 
-.PHONY: generate-uboot-pubkey
-generate-uboot-pubkey:
-	$(DTC) $(PUBKEY_DTS) -O dtb -o $(PUBKEY_DTB)
-
-
-
-fit-signed: generate-uboot-pubkey
-	mkdir -p $(OUT_PATH) && \
-	$(MKIMAGE_PATH)/mkimage -f $(FITS) \
-		-K $(PUBKEY_DTB) -k $(OUT_PATH) -r $(FITB)
 
 ################################################################################
 # Run targets
 ################################################################################
+# QEMU target setup
 QEMU_BIOS		?= -bios $(BIOS)
 QEMU_KERNEL		?= -kernel Image.gz
 
@@ -298,6 +302,7 @@ QEMU_EXTRA_ARGS +=\
 	-device virtio-9p-device,fsdev=fsdev0,mount_tag=host
 endif
 
+# Enable GDB debugging
 ifeq ($(GDB),y)
 QEMU_ARGS	+= -s -S
 
@@ -305,27 +310,9 @@ QEMU_ARGS	+= -s -S
 $(shell ln -sf $(AARCH64_PATH)/bin/aarch64-none-linux-gnu-gdb $(ROOT)/gdb)
 endif
 
-## Target to run U-boot and Linux kernel where U-boot is the bios and the kernel
-## is pulled from the block device.
-#.PHONY: run
-#run: create-env-image
-#	cd $(OUT_PATH) && \
-#	$(QEMU_BIN) \
-#		$(QEMU_ARGS) \
-#		$(QEMU_BIOS) \
-#		-semihosting-config enable,target=native
-#
-## -append 'console=ttyAMA0,38400 keep_bootcon root=/dev/vda2'
-
-
-# Target to run U-boot and Linux kernel where U-boot is the bios and the kernel
-# is pulled from tftp.
-#
-# To then boot using DHCP do:
-#  setenv serverip <host-computer-ip>
-#  tftp 0x40400000 uImage
+# Actual targets
 .PHONY: run-netboot
-run-netboot: create-env-image uimage
+run-netboot: qemu-create-env-image uimage
 	cd $(OUT_PATH) && \
 	$(QEMU_BIN) \
 		$(QEMU_ARGS) \
@@ -335,9 +322,9 @@ run-netboot: create-env-image uimage
 		$(QEMU_EXTRA_ARGS)
 
 # Target to run just Linux kernel directly. Here it's expected that the root fs
-# has been compiled into the kernel itself.
+# has been compiled into the kernel itself (if not, this will fail!).
 .PHONY: run-kernel
-run-kernel: create-env-image
+run-kernel: qemu-create-env-image
 	cd $(OUT_PATH) && \
 	$(QEMU_BIN) \
 		$(QEMU_ARGS) \
@@ -347,12 +334,12 @@ run-kernel: create-env-image
 
 # Target to run just Linux kernel directly and pulling the root fs separately.
 .PHONY: run-kernel-initrd
-run-kernel-initrd: create-env-image
+run-kernel-initrd: qemu-create-env-image
 	cd $(OUT_PATH) && \
 	$(QEMU_BIN) \
 		$(QEMU_ARGS) \
 		$(QEMU_KERNEL) \
-		-initrd $(ROOTFS) \
+		-initrd $(ROOTFS_GZ) \
                 -append "console=ttyAMA0" \
 		$(QEMU_EXTRA_ARGS)
 

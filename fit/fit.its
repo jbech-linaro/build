@@ -1,12 +1,23 @@
 /dts-v1/;
 
 / {
-	description = "Linux kernel w. QEMU DTB and rootfs";
+	description = "Linux kernel with QEMU DTB and rootfs";
 	#address-cells = <1>;
 
 	images {
 		kernel-1 {
-			description = "Vanilla Linux kernel";
+			description = "Linux kernel (unverified)";
+			data = /incbin/("../../linux/arch/arm64/boot/Image");
+			type = "kernel";
+			arch = "arm64";
+			os = "linux";
+			compression = "none";
+			load = <0x40400000>;
+			entry = <0x40400000>;
+		};
+
+		kernel-2 {
+			description = "Linux kernel (hash verification)";
 			data = /incbin/("../../linux/arch/arm64/boot/Image");
 			type = "kernel";
 			arch = "arm64";
@@ -20,14 +31,10 @@
 			hash-2 {
 				algo = "sha1";
 			};
-			signature-1 {
-				algo = "sha1,rsa2048";
-				key-name-hint = "private";
-			};
 		};
 
-		kernel-2 {
-			description = "Vanilla Linux kernel (unverified)";
+		kernel-3 {
+			description = "Linux kernel (RSA verification)";
 			data = /incbin/("../../linux/arch/arm64/boot/Image");
 			type = "kernel";
 			arch = "arm64";
@@ -35,6 +42,10 @@
 			compression = "none";
 			load = <0x40400000>;
 			entry = <0x40400000>;
+			signature-1 {
+				algo = "sha1,rsa2048";
+				key-name-hint = "private";
+			};
 		};
 
 		fdt-1 {
@@ -67,15 +78,31 @@
 
 	configurations {
 		default = "config-1";
+
 		config-1 {
-			description = "Boot Linux kernel with a QEMU DTB";
+			description = "Boot Linux kernel (no checks)";
 			kernel = "kernel-1";
 			fdt = "fdt-1";
 			ramdisk = "ramdisk-1";
 		};
+
 		config-2 {
-			description = "Boot Linux kernel with a QEMU DTB (no checks)";
+			description = "Boot Linux kernel (hash verification)";
 			kernel = "kernel-2";
+			fdt = "fdt-1";
+			ramdisk = "ramdisk-1";
+		};
+
+		config-3 {
+			description = "Boot Linux kernel (RSA verification)";
+			kernel = "kernel-3";
+			fdt = "fdt-1";
+			ramdisk = "ramdisk-1";
+		};
+
+		config-4 {
+			description = "Boot Linux kernel (RSA verification of U-Boot config)";
+			kernel = "kernel-3";
 			fdt = "fdt-1";
 			ramdisk = "ramdisk-1";
 		};
