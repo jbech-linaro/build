@@ -20,6 +20,10 @@
 			hash-2 {
 				algo = "sha1";
 			};
+			signature-@1 {
+				algo = "sha1,rsa2048";
+				key-name-hint = "private";
+			};
 		};
 
 		fdt {

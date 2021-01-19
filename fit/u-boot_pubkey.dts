@@ -1,0 +1,13 @@
+/dts-v1/;
+
+/ {
+	model = "Keys";
+	compatible = "qemu,virt";
+	signature {
+		key-private {
+			required = "image";
+			algo = "sha1,rsa2048";
+			key-name-hint = "private";
+		};
+	};
+};

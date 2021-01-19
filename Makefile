@@ -43,9 +43,13 @@ ROOTFS				?= $(BR_PATH)/output/images/rootfs.cpio.gz
 UROOTFS				?= $(BR_PATH)/output/images/rootfs.cpio.uboot
 
 # Keys
+# Note that KEY_SIZE is also set in the fit/u-boot_pubkey.dts, that has to be
+# adjusted accordingly.
 KEY_SIZE			?= 2048
 PRIVATE_KEY			?= $(OUT_PATH)/private.key
-CERTIFICATE			?= $(OUT_PATH)/certificate.crt
+CERTIFICATE			?= $(OUT_PATH)/private.crt
+PUBKEY_DTS			?= $(BUILD_PATH)/fit/u-boot_pubkey.dts
+PUBKEY_DTB			?= $(OUT_PATH)/u-boot_pubkey.dtb
 
 
 ################################################################################
@@ -238,20 +242,31 @@ uboot-cscope:
 	$(MAKE) -C $(UBOOT_PATH) cscope
 
 ################################################################################
-# Keys
+# Keys, signatures etc
 ################################################################################
 $(PRIVATE_KEY): 
 	openssl genrsa -F4 -out $(PRIVATE_KEY) $(KEY_SIZE)
 
-generate_keys: $(PRIVATE_KEY)
+generate-keys: $(PRIVATE_KEY)
 
-$(CERTIFICATE): | generate_keys
+$(CERTIFICATE): | generate-keys
 	openssl req -batch -new -x509 -key $(PRIVATE_KEY) -out $(CERTIFICATE)
 
-generate_certificate: $(CERTIFICATE)
+generate-certificate: $(CERTIFICATE)
 
 keys-clean:
 	rm -rf $(PRIVATE_KEY) $(CERTIFICATE)
+
+.PHONY: generate-uboot-pubkey
+generate-uboot-pubkey:
+	$(DTC) $(PUBKEY_DTS) -O dtb -o $(PUBKEY_DTB)
+
+
+
+fit-signed: generate-uboot-pubkey
+	mkdir -p $(OUT_PATH) && \
+	$(MKIMAGE_PATH)/mkimage -f $(FITS) \
+		-K $(PUBKEY_DTB) -k $(OUT_PATH) -r fitImage
 
 ################################################################################
 # Run targets
