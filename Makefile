@@ -211,7 +211,11 @@ fit: $(ROOTFS) $(QEMU_DTB) linux
 ################################################################################
 # U-boot
 ################################################################################
-UBOOT_DEFCONFIG_FILES := $(UBOOT_PATH)/configs/qemu_arm64_defconfig
+UBOOT_DEFCONFIG_FILES	:= $(UBOOT_PATH)/configs/qemu_arm64_defconfig
+
+ifeq ($(SIGN),y)
+UBOOT_EXTRA_ARGS	?= EXT_DTB=$(PUBKEY_DTB)
+endif
 
 $(UBOOT_PATH)/.config: $(UBOOT_DEFCONFIG_FILES)
 	cd $(UBOOT_PATH) && \
@@ -224,6 +228,7 @@ uboot-defconfig: $(UBOOT_PATH)/.config
 uboot: uboot-defconfig
 	mkdir -p $(OUT_PATH) && \
 	$(MAKE) -C $(UBOOT_PATH) \
+		$(UBOOT_EXTRA_ARGS) \
 		CROSS_COMPILE="$(CCACHE)$(AARCH64_CROSS_COMPILE)" && \
 	ln -sf $(BIOS) $(OUT_PATH)/
 
@@ -266,7 +271,7 @@ generate-uboot-pubkey:
 fit-signed: generate-uboot-pubkey
 	mkdir -p $(OUT_PATH) && \
 	$(MKIMAGE_PATH)/mkimage -f $(FITS) \
-		-K $(PUBKEY_DTB) -k $(OUT_PATH) -r fitImage
+		-K $(PUBKEY_DTB) -k $(OUT_PATH) -r $(FITB)
 
 ################################################################################
 # Run targets
