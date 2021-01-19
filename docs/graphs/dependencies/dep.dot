@@ -1,0 +1,45 @@
+digraph g {
+	graph [ rankdir = "UD" ];
+	node [ fontsize = "10" shape = "ellipse" ];
+	edge [ fontsize = "10" ];
+
+	algo			[ label = "algo(rithm)" color = "red" ];
+	dts			[ label = "Control\nFDT (*.dts)" ];
+	entry			[ label = "Entry address" color = "orange" ] ;
+	its			[ label = "FitImage (*.its) " ];
+	kernel 			[ label = "Linux\nKernel" ];
+	key_hint		[ label = "key-hint\n(verified boot)" color = "purple" ] ;
+	key_size		[ label = "key_size" color = "green" ];
+	load_address		[ label = "Load Address" color = "blue" ];
+	make			[ label = "Makefile" ];
+	mkimage			[ label = "mkimage" ];
+	openssl			[ label = "OpenSSL" ];
+	rootfs			[ label = "Buildroot" ];
+	uboot			[ label = "U-Boot (env)" ];
+
+
+	dts -> algo		[ label = "algo" color = "red" ];
+	its -> algo		[ label = "algo" color = "red" ];
+	openssl -> algo		[ label = "genrsa" color = "red" ];
+
+	make -> entry		[ label = "" color = "orange" ];
+	make -> entry		[ label = "paths" color = "orange" ];
+	mkimage -> entry	[ label = "-e" color = "orange" ];
+
+	dts -> key_hint		[ label = "key-name-hint" color = "purple" ];
+	its -> key_hint		[ label = "key-name-hint" color = "purple" ];
+	make -> key_hint	[ label = "paths" color = "purple" ];
+
+	dts -> key_size		[ label = "algo" color = "green" ];
+	its -> key_size		[ label = "algo" color = "green" ];
+	openssl -> key_size	[ label = "RSA size" color = "green" ];
+
+	its -> load_address	[ label = "load <addr>" color = "blue" ];
+	mkimage -> load_address	[ label = "-a" color = "blue" ];
+	uboot -> load_address	[ label = "bootm <addr>" color = "blue" ];
+
+	make -> mkimage		[ label = "" color = "black" ];
+	make -> openssl		[ label = "" color = "black" ];
+	make -> rootfs		[ label = "" color = "black" ];
+	make -> uboot		[ label = "" color = "black" ];
+}
