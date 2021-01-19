@@ -71,7 +71,7 @@ endif
 # Targets
 ################################################################################
 .PHONY: all
-all: linux qemu uboot buildroot fit
+all: linux qemu uboot buildroot fit-signed
 
 include toolchain.mk
 
@@ -146,14 +146,14 @@ qemu-configure:
 qemu: qemu-configure
 	make -C $(QEMU_PATH)
 
-$(QEMU_DTB):
+$(QEMU_DTB): qemu
 	$(QEMU_BIN) -machine virt \
 		-cpu cortex-a57 \
 		-machine dumpdtb=$(QEMU_DTB)
 
 qemu-dump-dtb: $(QEMU_DTB)
 
-$(QEMU_DTS): qemu-dump-dtb
+$(QEMU_DTS): qemu-dump-dtb linux
 	$(DTC) -I dtb -O dts $(QEMU_DTB) > $(QEMU_DTS)
 
 qemu-dump-dts: $(QEMU_DTS)
@@ -205,12 +205,12 @@ urootfs:
 				-n "Root files system" \
 				-d $(ROOTFS_GZ) $(ROOTFS_UGZ)
 
-fit: $(ROOTFS_GZ) $(QEMU_DTB) linux
+fit: buildroot $(QEMU_DTB) linux
 	mkdir -p $(OUT_PATH) && \
 	$(MKIMAGE_PATH)/mkimage -f $(FITIMAGE_SRC) \
 				$(FITIMAGE)
 
-fit-signed: $(ROOTFS_GZ) $(QEMU_DTB) linux generate-control-fdt
+fit-signed: buildroot $(QEMU_DTB) linux generate-control-fdt
 	mkdir -p $(OUT_PATH) && \
 	$(MKIMAGE_PATH)/mkimage -f $(FITIMAGE_SRC) \
 				-K $(CONTROL_FDT_DTB) \
@@ -260,6 +260,7 @@ uboot-clean:
 # Keys, signatures etc
 ################################################################################
 $(PRIVATE_KEY): 
+	mkdir -p $(OUT_PATH) && \
 	openssl genrsa -F4 -out $(PRIVATE_KEY) $(KEY_SIZE)
 
 generate-keys: $(PRIVATE_KEY)
@@ -269,10 +270,10 @@ $(CERTIFICATE): | generate-keys
 
 generate-certificate: $(CERTIFICATE)
 
-$(CONTROL_FDT_DTB):
+$(CONTROL_FDT_DTB): linux
 	$(DTC) $(CONTROL_FDT_DTS) -O dtb -o $(CONTROL_FDT_DTB)
 
-generate-control-fdt: $(CONTROL_FDT_DTB)
+generate-control-fdt: $(CONTROL_FDT_DTB) generate-certificate
 
 keys-clean:
 	rm -f $(PRIVATE_KEY) $(CONTROL_FDT_DTB) $(CERTIFICATE)
