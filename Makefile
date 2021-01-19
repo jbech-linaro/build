@@ -42,6 +42,17 @@ QEMU_ENV			?= $(OUT_PATH)/envstore.img
 ROOTFS				?= $(BR_PATH)/output/images/rootfs.cpio.gz
 UROOTFS				?= $(BR_PATH)/output/images/rootfs.cpio.uboot
 
+
+################################################################################
+# Sanity checks
+################################################################################
+# This project and Makefile is based around running it from the root folder. So
+# to avoid people making mistakes running it from the "build" folder itself add
+# a sanity check that we're indeed are running it from the root.
+ifeq ($(wildcard ./.repo), )
+$(error Make should be run from the root of the project!)
+endif
+
 ################################################################################
 # Targets
 ################################################################################
@@ -224,7 +235,7 @@ uboot-cscope:
 ################################################################################
 # Run targets
 ################################################################################
-QEMU_BIOS		?= -bios u-boot.bin
+QEMU_BIOS		?= -bios $(BIOS)
 QEMU_KERNEL		?= -kernel Image.gz
 
 QEMU_ARGS		+= -nographic \
@@ -251,16 +262,17 @@ QEMU_ARGS	+= -s -S
 $(shell ln -sf $(AARCH64_PATH)/bin/aarch64-none-linux-gnu-gdb $(ROOT)/gdb)
 endif
 
-# Target to run U-boot and Linux kernel where U-boot is the bios and the kernel
-# is pulled from the block device.
-.PHONY: run
-run: create-env-image
-	cd $(OUT_PATH) && \
-	$(QEMU_BIN) \
-		$(QEMU_ARGS) \
-		$(QEMU_BIOS) \
-		-semihosting-config enable,target=native \
-                -append 'console=ttyAMA0,38400 keep_bootcon root=/dev/vda2'
+## Target to run U-boot and Linux kernel where U-boot is the bios and the kernel
+## is pulled from the block device.
+#.PHONY: run
+#run: create-env-image
+#	cd $(OUT_PATH) && \
+#	$(QEMU_BIN) \
+#		$(QEMU_ARGS) \
+#		$(QEMU_BIOS) \
+#		-semihosting-config enable,target=native
+#
+## -append 'console=ttyAMA0,38400 keep_bootcon root=/dev/vda2'
 
 
 # Target to run U-boot and Linux kernel where U-boot is the bios and the kernel
@@ -282,7 +294,7 @@ run-netboot: create-env-image uimage
 # Target to run just Linux kernel directly. Here it's expected that the root fs
 # has been compiled into the kernel itself.
 .PHONY: run-kernel
-run-kernel:
+run-kernel: create-env-image
 	cd $(OUT_PATH) && \
 	$(QEMU_BIN) \
 		$(QEMU_ARGS) \
@@ -292,7 +304,7 @@ run-kernel:
 
 # Target to run just Linux kernel directly and pulling the root fs separately.
 .PHONY: run-kernel-initrd
-run-kernel-initrd:
+run-kernel-initrd: create-env-image
 	cd $(OUT_PATH) && \
 	$(QEMU_BIN) \
 		$(QEMU_ARGS) \
