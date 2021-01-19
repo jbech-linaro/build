@@ -42,6 +42,11 @@ QEMU_ENV			?= $(OUT_PATH)/envstore.img
 ROOTFS				?= $(BR_PATH)/output/images/rootfs.cpio.gz
 UROOTFS				?= $(BR_PATH)/output/images/rootfs.cpio.uboot
 
+# Keys
+KEY_SIZE			?= 2048
+PRIVATE_KEY			?= $(OUT_PATH)/private.key
+CERTIFICATE			?= $(OUT_PATH)/certificate.crt
+
 
 ################################################################################
 # Sanity checks
@@ -233,6 +238,22 @@ uboot-cscope:
 	$(MAKE) -C $(UBOOT_PATH) cscope
 
 ################################################################################
+# Keys
+################################################################################
+$(PRIVATE_KEY): 
+	openssl genrsa -F4 -out $(PRIVATE_KEY) $(KEY_SIZE)
+
+generate_keys: $(PRIVATE_KEY)
+
+$(CERTIFICATE): | generate_keys
+	openssl req -batch -new -x509 -key $(PRIVATE_KEY) -out $(CERTIFICATE)
+
+generate_certificate: $(CERTIFICATE)
+
+keys-clean:
+	rm -rf $(PRIVATE_KEY) $(CERTIFICATE)
+
+################################################################################
 # Run targets
 ################################################################################
 QEMU_BIOS		?= -bios $(BIOS)
@@ -318,7 +339,7 @@ run-kernel-initrd: create-env-image
 # Clean
 ################################################################################
 .PHONY: clean
-clean: buildroot-clean linux-clean qemu-clean uboot-clean
+clean: buildroot-clean keys-clean linux-clean qemu-clean uboot-clean
 
 .PHONY: distclean
 distclean: clean
