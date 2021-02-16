@@ -55,6 +55,13 @@ CONTROL_FDT_DTS			?= $(BUILD_PATH)/fit/control-fdt.dts
 CERTIFICATE			?= $(OUT_PATH)/private.crt
 PRIVATE_KEY			?= $(OUT_PATH)/private.key
 
+# EFI keys and certificates
+EFI_CERT_IMG			?= $(OUT_PATH)/certs.img
+EFI_DB_DIR			?= $(OUT_PATH)/tmp
+EFI_PK_AUTH			?= $(EFI_DB_DIR)/PK.auth
+EFI_KEK_AUTH			?= $(EFI_DB_DIR)/KEK.auth
+
+
 
 ################################################################################
 # Sanity checks
@@ -84,7 +91,7 @@ include toolchain.mk
 
 
 #################################################################################
-## Buildroot
+# Buildroot
 #################################################################################
 BR_DEFCONFIG_FILES := $(BUILD_PATH)/br_kconfigs/br_qemu_aarch64_virt.conf
 $(BR_PATH)/.config:
@@ -229,7 +236,8 @@ fit-signed: buildroot $(QEMU_DTB) linux generate-control-fdt
 ################################################################################
 # U-boot
 ################################################################################
-UBOOT_DEFCONFIG_FILES	:= $(UBOOT_PATH)/configs/qemu_arm64_defconfig
+UBOOT_DEFCONFIG_FILES	:= $(UBOOT_PATH)/configs/qemu_arm64_defconfig \
+			   $(BUILD_PATH)/u-boot_kconfigs/efi_deps.conf
 
 ifeq ($(SIGN),y)
 UBOOT_EXTRA_ARGS	?= EXT_DTB=$(CONTROL_FDT_DTB)
@@ -329,6 +337,22 @@ run-netboot: qemu-create-env-image uimage
 		-drive if=pflash,format=raw,index=1,file=envstore.img \
 		$(QEMU_EXTRA_ARGS)
 
+.PHONY: run-netbootefi
+run-netbootefi: qemu-create-env-image uimage create-key-img
+	cd $(OUT_PATH) && \
+	$(QEMU_BIN) \
+		$(QEMU_ARGS) \
+		$(QEMU_BIOS) \
+		-netdev user,id=vmnic -device virtio-net-device,netdev=vmnic \
+		-drive if=pflash,format=raw,index=1,file=envstore.img \
+		-semihosting-config enable,target=native \
+		-drive if=none,format=raw,file=$(EFI_CERT_IMG),id=mydisk \
+		-device nvme,drive=mydisk,serial=foo \
+		$(QEMU_EXTRA_ARGS)
+
+#   -monitor null -nographic \
+#   -cpu cortex-a57 -bios bl1.bin  -machine virt,secure=on -d unimp \
+
 # Target to run just Linux kernel directly. Here it's expected that the root fs
 # has been compiled into the kernel itself (if not, this will fail!).
 .PHONY: run-kernel
@@ -350,6 +374,36 @@ run-kernel-initrd: qemu-create-env-image
 		-initrd $(ROOTFS_GZ) \
                 -append "console=ttyAMA0" \
 		$(QEMU_EXTRA_ARGS)
+
+################################################################################
+# EFI related stuff
+################################################################################
+
+$(EFI_DB_DIR):
+	mkdir -p $@
+
+$(EFI_PK_AUTH): $(EFI_DB_DIR)
+	cd $(OUT_PATH) && \
+	openssl req -x509 -sha256 -newkey rsa:2048 -subj /CN=TEST_PK/ -keyout PK.key -out PK.crt -nodes -days 365 && \
+	cert-to-efi-sig-list -g 11111111-2222-3333-4444-123456789abc PK.crt PK.esl; sign-efi-sig-list -c PK.crt -k PK.key PK PK.esl PK.auth
+
+$(EFI_KEK_AUTH): $(EFI_DB_DIR) $(EFI_PK_AUTH)
+	cd $(OUT_PATH) && \
+	openssl req -x509 -sha256 -newkey rsa:2048 -subj /CN=TEST_KEK/ -keyout KEK.key -out KEK.crt -nodes -days 365 && \
+	cert-to-efi-sig-list -g 11111111-2222-3333-4444-123456789abc KEK.crt KEK.esl; sign-efi-sig-list -c PK.crt -k PK.key KEK KEK.esl KEK.auth
+
+$(EFI_CERT_IMG): $(EFI_DB_DIR) $(EFI_KEK_AUTH)
+	cp -u $(OUT_PATH)/PK.auth $(OUT_PATH)/KEK.auth $(EFI_DB_DIR)
+	virt-make-fs -s 1M -t ext4 $(EFI_DB_DIR) $(EFI_CERT_IMG)
+
+create-key-img: $(EFI_CERT_IMG)
+
+# U-Boot commands
+#   nvme scan
+#   load nvme 0 0x70000000 PK.auth;
+#   setenv -e -nv -bs -rt -at -i 0x70000000,$filesize PK
+#   load nvme 0 0x70000000 KEK.auth
+#   setenv -e -nv -bs -rt -at -i 0x70000000,$filesize KEK
 
 
 ################################################################################
