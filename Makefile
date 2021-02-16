@@ -15,6 +15,7 @@ ROOT				?= $(PWD)
 BR_DL_DIR			?= $(HOME)/br_download
 BR_PATH				?= $(ROOT)/buildroot
 BUILD_PATH			?= $(ROOT)/build
+GRUB2_PATH			?= $(ROOT)/grub2
 LINUX_PATH			?= $(ROOT)/linux
 MKIMAGE_PATH			?= $(UBOOT_PATH)/tools
 OUT_PATH			?= $(ROOT)/out
@@ -113,6 +114,35 @@ buildroot: $(BR_PATH)/.config
 .PHONY: buildroot-clean
 buildroot-clean:
 	cd $(BR_PATH) && git clean -xdf
+
+
+################################################################################
+# Grub2
+################################################################################
+# Bootstrap if there is no configure or if it has been updated
+$(GRUB2_PATH)/configure:
+	@echo "Running grub2 bootstrap"
+	cd $(GRUB2_PATH) && ./bootstrap
+
+# Configure if config.h doesn't exist or has been updated
+$(GRUB2_PATH)/config.h: $(GRUB2_PATH)/configure
+	cd $(GRUB2_PATH) && \
+		PATH=$(AARCH64_PATH)/bin:$(PATH) \
+		./configure --with-platform=efi \
+				--target=aarch64-linux-gnu \
+				--disable-werror \
+				--localedir=$(GRUB2_PATH)
+
+# Compile
+grub2-compile: $(GRUB2_PATH)/config.h
+	PATH=$(AARCH64_PATH)/bin:$(PATH) $(MAKE) -C $(GRUB2_PATH)
+
+# Create the efi file
+grub2: grub2-compile
+	$(GRUB2_PATH)/grub-mkstandalone -d $(GRUB2_PATH)/grub-core -O arm64-efi -o $(OUT_PATH)/grub2.efi
+
+grub2-clean:
+	cd $(GRUB2_PATH) && git clean -xdf
 
 
 ################################################################################
