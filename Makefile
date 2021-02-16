@@ -124,14 +124,17 @@ $(GRUB2_PATH)/configure:
 	@echo "Running grub2 bootstrap"
 	cd $(GRUB2_PATH) && ./bootstrap
 
-# Configure if config.h doesn't exist or has been updated
-$(GRUB2_PATH)/config.h: $(GRUB2_PATH)/configure
+grub2-configure: $(GRUB2_PATH)/configure
 	cd $(GRUB2_PATH) && \
 		PATH=$(AARCH64_PATH)/bin:$(PATH) \
 		./configure --with-platform=efi \
 				--target=aarch64-linux-gnu \
 				--disable-werror \
 				--localedir=$(GRUB2_PATH)
+
+# Helper target to run configure if config.h doesn't exist or has been updated
+$(GRUB2_PATH)/config.h: $(GRUB2_PATH)/configure
+	$(MAKE) grub2-configure
 
 # Compile
 grub2-compile: $(GRUB2_PATH)/config.h
