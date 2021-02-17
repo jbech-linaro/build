@@ -38,6 +38,7 @@ QEMU_BIN			?= $(QEMU_PATH)/aarch64-softmmu/qemu-system-aarch64
 QEMU_DTB			?= $(OUT_PATH)/qemu-aarch64.dtb
 QEMU_DTS			?= $(OUT_PATH)/qemu-aarch64.dts
 QEMU_ENV			?= $(OUT_PATH)/envstore.img
+ROOTFS_EXT4			?= $(BR_PATH)/output/images/rootfs.ext4
 ROOTFS_GZ			?= $(BR_PATH)/output/images/rootfs.cpio.gz
 ROOTFS_UGZ			?= $(BR_PATH)/output/images/rootfs.cpio.uboot
 
@@ -58,7 +59,7 @@ PRIVATE_KEY			?= $(OUT_PATH)/private.key
 
 # EFI keys and certificates
 EFI_CERT_IMG			?= $(OUT_PATH)/certs.img
-EFI_DB_DIR			?= $(OUT_PATH)/tmp
+EFI_DB_DIR			?= $(OUT_PATH)/variables
 EFI_PK_AUTH			?= $(EFI_DB_DIR)/PK.auth
 EFI_KEK_AUTH			?= $(EFI_DB_DIR)/KEK.auth
 
@@ -142,10 +143,35 @@ grub2-compile: $(GRUB2_PATH)/config.h
 
 # Create the efi file
 grub2: grub2-compile
-	$(GRUB2_PATH)/grub-mkstandalone -d $(GRUB2_PATH)/grub-core -O arm64-efi -o $(OUT_PATH)/grub2.efi
+	$(GRUB2_PATH)/grub-mkstandalone \
+		-d $(GRUB2_PATH)/grub-core \
+		-O arm64-efi \
+		-o $(OUT_PATH)/grub2.efi \
+		"boot/grub/arm64-efi/grub.cfg=grub.cfg"
+
+GRUB2_TMP ?= $(OUT_PATH)/grub2
+
+$(GRUB2_TMP):
+	mkdir -p $@
+
+grub2-create-image: $(GRUB2_TMP)
+	# Use a written path to avoid rm -f real host machine files (in case
+	# GRUB2_TMP is empty)
+	rm -f $(OUT_PATH)/grub2/*
+	cp $(KERNEL_IMAGE) $(GRUB2_TMP)
+	cp $(OUT_PATH)/initrd.img $(GRUB2_TMP)
+	virt-make-fs -t vfat $(GRUB2_TMP) $(OUT_PATH)/os.img
 
 grub2-clean:
 	cd $(GRUB2_PATH) && git clean -xdf
+
+
+# insmod linux
+# linux (hd0)/Image root=/dev/vda       
+# initrd (hd0)/initrd.img 
+
+# linux (hd1)/Image root=/dev/vda       
+# initrd (hd1)/initrd.img 
 
 
 ################################################################################
@@ -379,12 +405,14 @@ run-netbootefi: qemu-create-env-image uimage create-key-img
 		-netdev user,id=vmnic -device virtio-net-device,netdev=vmnic \
 		-drive if=pflash,format=raw,index=1,file=envstore.img \
 		-semihosting-config enable,target=native \
-		-drive if=none,format=raw,file=$(EFI_CERT_IMG),id=mydisk \
-		-device nvme,drive=mydisk,serial=foo \
+		-drive if=none,file=$(EFI_CERT_IMG),format=raw,id=variables \
+		-device nvme,drive=variables,serial=foo \
+		-drive if=none,file=$(OUT_PATH)/os.img,format=raw,id=hd0 \
+		-device virtio-blk-device,drive=hd0 \
+		-drive file=$(ROOTFS_EXT4),if=none,format=raw,id=vda \
+		-device virtio-blk-device,drive=vda \
 		$(QEMU_EXTRA_ARGS)
 
-#   -monitor null -nographic \
-#   -cpu cortex-a57 -bios bl1.bin  -machine virt,secure=on -d unimp \
 
 # Target to run just Linux kernel directly. Here it's expected that the root fs
 # has been compiled into the kernel itself (if not, this will fail!).
