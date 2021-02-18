@@ -1,10 +1,3 @@
-# Todo
-# 1. Enable ordinary boot w/o tftp
-# 2. Run Image and/or Image.gz
-# 3. Modify DTB
-# 4. Create boot.scr or uboot.env
-
-
 ################################################################################
 # Paths to git projects and various binaries
 ################################################################################
@@ -26,11 +19,21 @@ DEBUG				?= n
 PLATFORM			?= qemu
 CCACHE_DIR			?= $(HOME)/.ccache
 
+# Configuration
+ENVSTORE			?= y
+GDB				?= n
+GRUB2				?= y
+QEMU_VIRTFS_ENABLE		?= y
+QEMU_VIRTFS_HOST_DIR		?= $(ROOT)
+VARIABLES			?= n
+
 # Binaries and general files
 BIOS				?= $(UBOOT_PATH)/u-boot.bin
 DTC				?= $(LINUX_PATH)/scripts/dtc/dtc
 FITIMAGE			?= $(OUT_PATH)/image.fit
 FITIMAGE_SRC			?= $(BUILD_PATH)/fit/fit.its
+GRUB2_EFI			?= $(OUT_PATH)/grub2-arm64.efi
+KERNEL_EXT4			?= $(OUT_PATH)/kernel.ext4
 KERNEL_IMAGE			?= $(LINUX_PATH)/arch/arm64/boot/Image
 KERNEL_IMAGEGZ			?= $(LINUX_PATH)/arch/arm64/boot/Image.gz
 KERNEL_UIMAGE			?= $(OUT_PATH)/uImage
@@ -64,7 +67,6 @@ EFI_PK_AUTH			?= $(EFI_DB_DIR)/PK.auth
 EFI_KEK_AUTH			?= $(EFI_DB_DIR)/KEK.auth
 
 
-
 ################################################################################
 # Sanity checks
 ################################################################################
@@ -80,6 +82,11 @@ endif
 # Targets
 ################################################################################
 TARGET_DEPS := linux qemu uboot buildroot
+
+ifeq ($(GRUB2),y)
+TARGET_DEPS += grub2
+endif
+
 ifeq ($(SIGN),y)
 TARGET_DEPS += fit-signed
 else
@@ -91,26 +98,33 @@ all: $(TARGET_DEPS)
 
 include toolchain.mk
 
+#################################################################################
+# Helper targets
+#################################################################################
+$(OUT_PATH):
+	mkdir -p $@
+
 
 #################################################################################
 # Buildroot
 #################################################################################
-BR_DEFCONFIG_FILES := $(BUILD_PATH)/br_kconfigs/br_qemu_aarch64_virt.conf
+BR_DEFCONFIG_FILES := $(BUILD_PATH)/kconfigs/buildroot/br-qemu-virt-aarch64.conf
+
 $(BR_PATH)/.config:
 	cd $(BR_PATH) && \
 	support/kconfig/merge_config.sh \
 	$(BR_DEFCONFIG_FILES)
 
 # Note that the AARCH64_PATH here is necessary and it's used in the
-# br_kconfigs/br_qemu_aarch64_virt.conf file where a variable is used to find
-# and set the # correct toolchain to use.
-buildroot: $(BR_PATH)/.config
-	mkdir -p $(OUT_PATH)
+# kconfigs/buildroot/br-qemu-virt-aarch64.conf file where a variable is used to
+# find and set the correct toolchain to use.
+buildroot: $(BR_PATH)/.config $(OUT_PATH)
 	$(MAKE) -C $(BR_PATH) \
 		BR2_CCACHE_DIR="$(CCACHE_DIR)" \
 		AARCH64_PATH=$(AARCH64_PATH)
 	ln -sf $(ROOTFS_GZ) $(OUT_PATH)/ && \
-	ln -sf $(ROOTFS_UGZ) $(OUT_PATH)/
+	ln -sf $(ROOTFS_UGZ) $(OUT_PATH)/ && \
+	ln -sf $(ROOTFS_EXT4) $(OUT_PATH)/
 
 .PHONY: buildroot-clean
 buildroot-clean:
@@ -120,11 +134,20 @@ buildroot-clean:
 ################################################################################
 # Grub2
 ################################################################################
+GRUB2_TMP ?= $(OUT_PATH)/grub2
+
+# When creating the image containing Linux kernel, we need to temporarily store
+# the files somewhere.
+$(GRUB2_TMP):
+	mkdir -p $@
+
 # Bootstrap if there is no configure or if it has been updated
 $(GRUB2_PATH)/configure:
 	@echo "Running grub2 bootstrap"
 	cd $(GRUB2_PATH) && ./bootstrap
 
+# Explicitly set the path to the aarch64 toolchain when running the configure
+# target.
 grub2-configure: $(GRUB2_PATH)/configure
 	cd $(GRUB2_PATH) && \
 		PATH=$(AARCH64_PATH)/bin:$(PATH) \
@@ -141,37 +164,29 @@ $(GRUB2_PATH)/config.h: $(GRUB2_PATH)/configure
 grub2-compile: $(GRUB2_PATH)/config.h
 	PATH=$(AARCH64_PATH)/bin:$(PATH) $(MAKE) -C $(GRUB2_PATH)
 
+grub2-create-image: $(GRUB2_TMP) linux
+	# Use a written path to avoid rm -f real host machine files (in case
+	# GRUB2_TMP has been set to an empty string)
+	rm -f $(OUT_PATH)/grub2/*
+	cp $(KERNEL_IMAGE) $(GRUB2_TMP)
+	virt-make-fs -t vfat $(GRUB2_TMP) $(KERNEL_EXT4)
+
 # Create the efi file
-grub2: grub2-compile
+grub2: grub2-compile $(OUT_PATH) grub2-create-image
 	$(GRUB2_PATH)/grub-mkstandalone \
 		-d $(GRUB2_PATH)/grub-core \
 		-O arm64-efi \
-		-o $(OUT_PATH)/grub2.efi \
-		"boot/grub/arm64-efi/grub.cfg=grub.cfg"
+		-o $(GRUB2_EFI)
 
-GRUB2_TMP ?= $(OUT_PATH)/grub2
-
-$(GRUB2_TMP):
-	mkdir -p $@
-
-grub2-create-image: $(GRUB2_TMP)
-	# Use a written path to avoid rm -f real host machine files (in case
-	# GRUB2_TMP is empty)
-	rm -f $(OUT_PATH)/grub2/*
-	cp $(KERNEL_IMAGE) $(GRUB2_TMP)
-	cp $(OUT_PATH)/initrd.img $(GRUB2_TMP)
-	virt-make-fs -t vfat $(GRUB2_TMP) $(OUT_PATH)/os.img
+grub2-help:
+	@echo "Run these commands at the grub2 shell:"
+	@echo "  insmod linux"
+	@echo "  linux (hd1)/Image root=/dev/vda"
+	@echo "  boot"
+	@echo "\nOnce done, Linux will boot up"
 
 grub2-clean:
 	cd $(GRUB2_PATH) && git clean -xdf
-
-
-# insmod linux
-# linux (hd0)/Image root=/dev/vda       
-# initrd (hd0)/initrd.img 
-
-# linux (hd1)/Image root=/dev/vda       
-# initrd (hd1)/initrd.img 
 
 
 ################################################################################
@@ -186,7 +201,7 @@ $(LINUX_PATH)/.config: $(LINUX_DEFCONFIG_FILES)
 
 linux-defconfig: $(LINUX_PATH)/.config
 
-linux: linux-defconfig
+linux: linux-defconfig $(OUT_PATH)
 	yes | $(MAKE) -C $(LINUX_PATH) \
 		ARCH=arm64 CROSS_COMPILE="$(CCACHE)$(AARCH64_CROSS_COMPILE)" \
 		Image.gz dtbs && \
@@ -216,7 +231,14 @@ qemu-configure:
 		--extra-cflags="-Wno-error" \
 		--enable-virtfs
 
-qemu: qemu-configure
+# Helper target to run configure if config-host.mak doesn't exist or has been
+# updated. This avoid re-run configure everytime we run the "qemu" target.
+$(QEMU_PATH)/config-host.mak:
+	$(MAKE) qemu-configure
+
+# Need a PHONY target here, otherwise it mixes it with the folder name "qemu".
+.PHONY: qemu
+qemu: $(QEMU_PATH)/config-host.mak
 	make -C $(QEMU_PATH)
 
 $(QEMU_DTB): qemu
@@ -237,8 +259,8 @@ qemu-create-env-image:
 		qemu-img create -f raw $(QEMU_ENV) 64M; \
 	fi
 
-qemu_mount_command:
-	@echo "Run this in QEMU / Linux / Buildroot:"
+qemu-help:
+	@echo "Run this at the shell in Buildroot:"
 	@echo "  mkdir /host && mount -t 9p -o trans=virtio host /host"
 	@echo "\nOnce done, you can access the host PC's files"
 
@@ -296,7 +318,7 @@ fit-signed: buildroot $(QEMU_DTB) linux generate-control-fdt
 # U-boot
 ################################################################################
 UBOOT_DEFCONFIG_FILES	:= $(UBOOT_PATH)/configs/qemu_arm64_defconfig \
-			   $(BUILD_PATH)/u-boot_kconfigs/efi_deps.conf
+			   $(BUILD_PATH)/kconfigs/u-boot/efi-deps.conf
 
 ifeq ($(SIGN),y)
 UBOOT_EXTRA_ARGS	?= EXT_DTB=$(CONTROL_FDT_DTB)
@@ -331,7 +353,7 @@ uboot-clean:
 
 
 ################################################################################
-# Keys, signatures etc
+# Keys, signatures etc for fit images
 ################################################################################
 $(PRIVATE_KEY): 
 	mkdir -p $(OUT_PATH) && \
@@ -354,92 +376,8 @@ keys-clean:
 
 
 ################################################################################
-# Run targets
+# Variables for EFI related stuff
 ################################################################################
-# QEMU target setup
-QEMU_BIOS		?= -bios $(BIOS)
-QEMU_KERNEL		?= -kernel Image.gz
-
-QEMU_ARGS		+= -nographic \
-		   	   -smp 1 \
-		   	   -machine virt \
-		   	   -cpu cortex-a57 \
-		   	   -d unimp \
-		   	   -m 512 \
-		   	   -no-acpi
-
-QEMU_VIRTFS_ENABLE	?= y
-QEMU_VIRTFS_HOST_DIR	?= $(ROOT)
-
-ifeq ($(QEMU_VIRTFS_ENABLE),y)
-QEMU_EXTRA_ARGS +=\
-	-fsdev local,id=fsdev0,path=$(QEMU_VIRTFS_HOST_DIR),security_model=none \
-	-device virtio-9p-device,fsdev=fsdev0,mount_tag=host
-endif
-
-# Enable GDB debugging
-ifeq ($(GDB),y)
-QEMU_ARGS	+= -s -S
-
-# For convenience, setup path to gdb
-$(shell ln -sf $(AARCH64_PATH)/bin/aarch64-none-linux-gnu-gdb $(ROOT)/gdb)
-endif
-
-# Actual targets
-.PHONY: run-netboot
-run-netboot: qemu-create-env-image uimage
-	cd $(OUT_PATH) && \
-	$(QEMU_BIN) \
-		$(QEMU_ARGS) \
-		$(QEMU_BIOS) \
-		-netdev user,id=vmnic -device virtio-net-device,netdev=vmnic \
-		-drive if=pflash,format=raw,index=1,file=envstore.img \
-		$(QEMU_EXTRA_ARGS)
-
-.PHONY: run-netbootefi
-run-netbootefi: qemu-create-env-image uimage create-key-img
-	cd $(OUT_PATH) && \
-	$(QEMU_BIN) \
-		$(QEMU_ARGS) \
-		$(QEMU_BIOS) \
-		-netdev user,id=vmnic -device virtio-net-device,netdev=vmnic \
-		-drive if=pflash,format=raw,index=1,file=envstore.img \
-		-semihosting-config enable,target=native \
-		-drive if=none,file=$(EFI_CERT_IMG),format=raw,id=variables \
-		-device nvme,drive=variables,serial=foo \
-		-drive if=none,file=$(OUT_PATH)/os.img,format=raw,id=hd0 \
-		-device virtio-blk-device,drive=hd0 \
-		-drive file=$(ROOTFS_EXT4),if=none,format=raw,id=vda \
-		-device virtio-blk-device,drive=vda \
-		$(QEMU_EXTRA_ARGS)
-
-
-# Target to run just Linux kernel directly. Here it's expected that the root fs
-# has been compiled into the kernel itself (if not, this will fail!).
-.PHONY: run-kernel
-run-kernel: qemu-create-env-image
-	cd $(OUT_PATH) && \
-	$(QEMU_BIN) \
-		$(QEMU_ARGS) \
-		$(QEMU_KERNEL) \
-                -append "console=ttyAMA0" \
-		$(QEMU_EXTRA_ARGS)
-
-# Target to run just Linux kernel directly and pulling the root fs separately.
-.PHONY: run-kernel-initrd
-run-kernel-initrd: qemu-create-env-image
-	cd $(OUT_PATH) && \
-	$(QEMU_BIN) \
-		$(QEMU_ARGS) \
-		$(QEMU_KERNEL) \
-		-initrd $(ROOTFS_GZ) \
-                -append "console=ttyAMA0" \
-		$(QEMU_EXTRA_ARGS)
-
-################################################################################
-# EFI related stuff
-################################################################################
-
 $(EFI_DB_DIR):
 	mkdir -p $@
 
@@ -467,11 +405,96 @@ create-key-img: $(EFI_CERT_IMG)
 #   setenv -e -nv -bs -rt -at -i 0x70000000,$filesize KEK
 
 
+
+################################################################################
+# Run targets
+#
+# It should be noted that the run targets are intentionally written so that
+# they just simply launch the target. I.e., there are no checks and not
+# dependency rules added to build certain pieces if missing. The reason for
+# this is that it should be quick to run your targets. This also means that it
+# is likely that you get error if trying this and:
+#  - You forgot to build
+#  - You forgot to build some components
+#  - You forgot to rebuild after making changes to some components.
+################################################################################
+# QEMU target setup
+QEMU_BIOS		?= -bios $(BIOS)
+QEMU_KERNEL		?= -kernel Image.gz
+
+QEMU_ARGS		+= -nographic \
+		   	   -smp 1 \
+		   	   -machine virt \
+		   	   -cpu cortex-a57 \
+		   	   -d unimp \
+		   	   -m 512 \
+		   	   -no-acpi
+
+ifeq ($(QEMU_VIRTFS_ENABLE),y)
+QEMU_EXTRA_ARGS +=\
+	-fsdev local,id=fsdev0,path=$(QEMU_VIRTFS_HOST_DIR),security_model=none \
+	-device virtio-9p-device,fsdev=fsdev0,mount_tag=host
+endif
+
+ifeq ($(GRUB2),y)
+QEMU_EXTRA_ARGS +=\
+	-drive if=none,file=$(KERNEL_EXT4),format=raw,id=hd0 \
+	-device virtio-blk-device,drive=hd0 \
+	-drive file=$(ROOTFS_EXT4),if=none,format=raw,id=vda \
+	-device virtio-blk-device,drive=vda
+endif
+
+ifeq ($(ENVSTORE),y)
+QEMU_EXTRA_ARGS +=\
+	-netdev user,id=vmnic -device virtio-net-device,netdev=vmnic \
+	-drive if=pflash,format=raw,index=1,file=envstore.img
+endif
+
+# Enable GDB debugging
+ifeq ($(GDB),y)
+QEMU_EXTRA_ARGS	+= -s -S
+
+# For convenience, setup path to gdb
+$(shell ln -sf $(AARCH64_PATH)/bin/aarch64-none-linux-gnu-gdb $(ROOT)/gdb)
+endif
+
+# Actual targets
+.PHONY: run-netboot
+run-netboot:
+	cd $(OUT_PATH) && \
+	$(QEMU_BIN) \
+		$(QEMU_ARGS) \
+		$(QEMU_BIOS) \
+		$(QEMU_EXTRA_ARGS)
+
+# Target to run just Linux kernel directly. Here it's expected that the root fs
+# has been compiled into the kernel itself (if not, this will fail!).
+.PHONY: run-kernel
+run-kernel:
+	cd $(OUT_PATH) && \
+	$(QEMU_BIN) \
+		$(QEMU_ARGS) \
+		$(QEMU_KERNEL) \
+                -append "console=ttyAMA0" \
+		$(QEMU_EXTRA_ARGS)
+
+# Target to run just Linux kernel directly and pulling the root fs separately.
+.PHONY: run-kernel-initrd
+run-kernel-initrd:
+	cd $(OUT_PATH) && \
+	$(QEMU_BIN) \
+		$(QEMU_ARGS) \
+		$(QEMU_KERNEL) \
+		-initrd $(ROOTFS_GZ) \
+                -append "console=ttyAMA0" \
+		$(QEMU_EXTRA_ARGS)
+
+
 ################################################################################
 # Clean
 ################################################################################
 .PHONY: clean
-clean: buildroot-clean keys-clean linux-clean qemu-clean uboot-clean
+clean: buildroot-clean keys-clean grub2-clean linux-clean qemu-clean uboot-clean
 
 .PHONY: distclean
 distclean: clean
