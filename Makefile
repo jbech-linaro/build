@@ -51,16 +51,21 @@ KERNEL_LOADADDR			?= 0x40400000
 ROOTFS_ENTRY			?= 0x44000000
 ROOTFS_LOADADDR			?= 0x44000000
 
-# Keys
-# Note that KEY_SIZE is also set in the FITIMAGE_SRC, that has to be adjusted
-# accordingly.
-KEY_SIZE			?= 2048
+# This is just a temporary writeable address high enough to not clash with the
+# addresses used when U-Boot loads the images.
+FITIMG_LOADADDR			?= 0x48000000
+
+# FIT keys, certificates etc.
+# Note that FIT_KEY_SIZE is also set in the FITIMAGE_SRC, that has to be
+# adjusted accordingly.
+FIT_KEY_SIZE			?= 2048
 CONTROL_FDT_DTB			?= $(OUT_PATH)/control-fdt.dtb
 CONTROL_FDT_DTS			?= $(BUILD_PATH)/fit/control-fdt.dts
-CERTIFICATE			?= $(OUT_PATH)/private.crt
-PRIVATE_KEY			?= $(OUT_PATH)/private.key
+FIT_CERTIFICATE			?= $(OUT_PATH)/private.crt
+FIT_PRIVATE_KEY			?= $(OUT_PATH)/private.key
 
 # EFI keys and certificates
+EFI_KEY_SIZE			?= 2048
 EFI_CERT_IMG			?= $(OUT_PATH)/certs.img
 EFI_DB_DIR			?= $(OUT_PATH)/variables
 EFI_PK_AUTH			?= $(EFI_DB_DIR)/PK.auth
@@ -83,6 +88,10 @@ endif
 ################################################################################
 TARGET_DEPS := linux qemu uboot buildroot
 
+ifeq ($(ENVSTORE),y)
+TARGET_DEPS += qemu-create-env-image
+endif
+
 ifeq ($(GRUB2),y)
 TARGET_DEPS += grub2
 endif
@@ -101,6 +110,8 @@ include toolchain.mk
 #################################################################################
 # Helper targets
 #################################################################################
+help: grub2-help qemu-help uboot-help
+
 $(OUT_PATH):
 	mkdir -p $@
 
@@ -179,12 +190,16 @@ grub2: grub2-compile $(OUT_PATH) grub2-create-image
 		-o $(GRUB2_EFI)
 
 grub2-help:
+	@echo "\n================================================================================"
+	@echo "= GRUB2 help                                                                   ="
+	@echo "================================================================================"
 	@echo "Run these commands at the grub2 shell:"
 	@echo "  insmod linux"
 	@echo "  linux (hd1)/Image root=/dev/vda"
 	@echo "  boot"
 	@echo "\nOnce done, Linux will boot up"
 
+.PHONY: grub2-clean
 grub2-clean:
 	cd $(GRUB2_PATH) && git clean -xdf
 
@@ -201,7 +216,7 @@ $(LINUX_PATH)/.config: $(LINUX_DEFCONFIG_FILES)
 
 linux-defconfig: $(LINUX_PATH)/.config
 
-linux: linux-defconfig $(OUT_PATH)
+linux: linux-defconfig $(OUT_PATH) uimage
 	yes | $(MAKE) -C $(LINUX_PATH) \
 		ARCH=arm64 CROSS_COMPILE="$(CCACHE)$(AARCH64_CROSS_COMPILE)" \
 		Image.gz dtbs && \
@@ -260,6 +275,9 @@ qemu-create-env-image:
 	fi
 
 qemu-help:
+	@echo "\n================================================================================"
+	@echo "= QEMU                                                                         ="
+	@echo "================================================================================"
 	@echo "Run this at the shell in Buildroot:"
 	@echo "  mkdir /host && mount -t 9p -o trans=virtio host /host"
 	@echo "\nOnce done, you can access the host PC's files"
@@ -270,11 +288,10 @@ qemu-clean:
 
 
 ################################################################################
-# mkimage
+# mkimage - create images to be loaded by U-boot
 ################################################################################
-# FIXME: The linux.bin thing probably isn't necessary.
-uimage: $(KERNEL_IMAGE)
-	mkdir -p $(OUT_PATH) && \
+# Without the objcopy, the uImage will be 10x bigger.
+uimage: $(KERNEL_IMAGE) $(OUT_PATH)
 	${AARCH64_CROSS_COMPILE}objcopy -O binary \
 					-R .note \
 					-R .comment \
@@ -289,24 +306,23 @@ uimage: $(KERNEL_IMAGE)
 				-n "Linux kernel" \
 				-d $(OUT_PATH)/linux.bin $(KERNEL_UIMAGE)
 
-# FIXME: Names clashes ROOTFS_GZ and ROOTFS_UGZ, this will overwrite the u-rootfs from Buildroot.
-urootfs:
-	mkdir -p $(OUT_PATH) && \
+# This isn't direcly used anywhere, but in case the user want to convert his
+# own gzip'd root file system, then then you use this, example
+#    make urootfs ROOTFS_GZ=<my-own-rootfs>
+urootfs: $(OUT_PATH)
 	$(MKIMAGE_PATH)/mkimage -A arm64 \
 				-T ramdisk \
 				-C gzip \
 				-a $(ROOTFS_LOADADDR) \
 				-e $(ROOTFS_ENTRY) \
-				-n "Root files system" \
+				-n "Root file system" \
 				-d $(ROOTFS_GZ) $(ROOTFS_UGZ)
 
-fit: buildroot $(QEMU_DTB) linux
-	mkdir -p $(OUT_PATH) && \
+fit: buildroot $(QEMU_DTB) linux $(OUT_PATH)
 	$(MKIMAGE_PATH)/mkimage -f $(FITIMAGE_SRC) \
 				$(FITIMAGE)
 
-fit-signed: buildroot $(QEMU_DTB) linux generate-control-fdt
-	mkdir -p $(OUT_PATH) && \
+fit-signed: buildroot $(QEMU_DTB) linux generate-control-fdt $(OUT_PATH)
 	$(MKIMAGE_PATH)/mkimage -f $(FITIMAGE_SRC) \
 				-K $(CONTROL_FDT_DTB) \
 				-k $(OUT_PATH) \
@@ -347,6 +363,29 @@ uboot-menuconfig: uboot-defconfig
 uboot-cscope:
 	$(MAKE) -C $(UBOOT_PATH) cscope
 
+uboot-help:
+	@echo "\n================================================================================"
+	@echo "= U-boot                                                                       ="
+	@echo "================================================================================"
+	@echo "TFTP (bootm): U-Boot -> Kernel -> Buildroot shell"
+	@echo '  setenv netboot "dhcp; setenv serverip 192.168.1.110; tftp $${kernel_addr_r} uImage; tftp $${ramdisk_addr_r} rootfs.cpio.uboot; bootm $${kernel_addr_r} $${ramdisk_addr_r} $${fdt_addr}"'
+	@echo "\nTFTP (bootm) fit: U-Boot + fit-image -> Kernel -> Buildroot shell"
+	@echo '  setenv netbootfit "dhcp; setenv serverip 192.168.1.110; tftp ${FITIMG_LOADADDR} image.fit; bootm"'
+	@echo "\nTFTP (bootm) fit configs: U-Boot + fit-image#config-x -> Kernel -> Buildroot shell"
+	@echo '  setenv netloadfit "dhcp; setenv serverip 192.168.1.110; tftp ${FITIMG_LOADADDR} image.fit"'
+	@echo "  then one of these:"
+	@echo '  setenv fitconfig1 "run netloadfit; bootm ${FITIMG_LOADADDR}#config-1"'
+	@echo '  setenv fitconfig2 "run netloadfit; bootm ${FITIMG_LOADADDR}#config-2"'
+	@echo '  setenv fitconfig3 "run netloadfit; bootm ${FITIMG_LOADADDR}#config-3"'
+	@echo '  setenv fitconfig4 "run netloadfit; bootm ${FITIMG_LOADADDR}#config-4"'
+	@echo "\nTFTP (bootefi): U-Boot -> grub2 -> Kernel -> Buildroot shell"
+	@echo '  setenv netbootgrub "dhcp; setenv serverip 192.168.1.110; tftp $${kernel_addr_r} grub2-arm64.efi; bootefi $${kernel_addr_r}"'
+	@echo "\nSave the U-boot environment variables"
+	@echo "  1. Build with ENVSTORE=y (enabled by default)"
+	@echo "  2. In U-boot, make changes, i.e., setenv etc"
+	@echo "  3. saveenv"
+
+
 .PHONY: uboot-clean
 uboot-clean:
 	cd $(UBOOT_PATH) && git clean -xdf
@@ -355,24 +394,25 @@ uboot-clean:
 ################################################################################
 # Keys, signatures etc for fit images
 ################################################################################
-$(PRIVATE_KEY): 
+$(FIT_PRIVATE_KEY): 
 	mkdir -p $(OUT_PATH) && \
-	openssl genrsa -F4 -out $(PRIVATE_KEY) $(KEY_SIZE)
+	openssl genrsa -F4 -out $(FIT_PRIVATE_KEY) $(FIT_KEY_SIZE)
 
-generate-keys: $(PRIVATE_KEY)
+generate-keys: $(FIT_PRIVATE_KEY)
 
-$(CERTIFICATE): | generate-keys
-	openssl req -batch -new -x509 -key $(PRIVATE_KEY) -out $(CERTIFICATE)
+$(FIT_CERTIFICATE): | generate-keys
+	openssl req -batch -new -x509 -key $(FIT_PRIVATE_KEY) -out $(FIT_CERTIFICATE)
 
-generate-certificate: $(CERTIFICATE)
+generate-certificate: $(FIT_CERTIFICATE)
 
 $(CONTROL_FDT_DTB): linux
 	$(DTC) $(CONTROL_FDT_DTS) -O dtb -o $(CONTROL_FDT_DTB)
 
 generate-control-fdt: $(CONTROL_FDT_DTB) generate-certificate
 
+.PHONY: keys-clean
 keys-clean:
-	rm -f $(PRIVATE_KEY) $(CONTROL_FDT_DTB) $(CERTIFICATE)
+	rm -f $(FIT_PRIVATE_KEY) $(CONTROL_FDT_DTB) $(FIT_CERTIFICATE)
 
 
 ################################################################################
@@ -383,13 +423,31 @@ $(EFI_DB_DIR):
 
 $(EFI_PK_AUTH): $(EFI_DB_DIR)
 	cd $(OUT_PATH) && \
-	openssl req -x509 -sha256 -newkey rsa:2048 -subj /CN=TEST_PK/ -keyout PK.key -out PK.crt -nodes -days 365 && \
-	cert-to-efi-sig-list -g 11111111-2222-3333-4444-123456789abc PK.crt PK.esl; sign-efi-sig-list -c PK.crt -k PK.key PK PK.esl PK.auth
+	openssl req \
+		-x509 \
+		-sha256 \
+		-newkey rsa:$(EFI_KEY_SIZE) \
+		-subj /CN=TEST_PK/ \
+		-keyout PK.key \
+		-out PK.crt \
+		-nodes \
+		-days 365 && \
+	cert-to-efi-sig-list -g 11111111-2222-3333-4444-123456789abc PK.crt PK.esl && \
+	sign-efi-sig-list -c PK.crt -k PK.key PK PK.esl PK.auth
 
 $(EFI_KEK_AUTH): $(EFI_DB_DIR) $(EFI_PK_AUTH)
 	cd $(OUT_PATH) && \
-	openssl req -x509 -sha256 -newkey rsa:2048 -subj /CN=TEST_KEK/ -keyout KEK.key -out KEK.crt -nodes -days 365 && \
-	cert-to-efi-sig-list -g 11111111-2222-3333-4444-123456789abc KEK.crt KEK.esl; sign-efi-sig-list -c PK.crt -k PK.key KEK KEK.esl KEK.auth
+	openssl req \
+		-x509 \
+		-sha256 \
+		-newkey rsa:$(EFI_KEY_SIZE) \
+		-subj /CN=TEST_KEK/ \
+		-keyout KEK.key \
+		-out KEK.crt \
+		-nodes \
+		-days 365 && \
+	cert-to-efi-sig-list -g 11111111-2222-3333-4444-123456789abc KEK.crt KEK.esl && \
+	sign-efi-sig-list -c PK.crt -k PK.key KEK KEK.esl KEK.auth
 
 $(EFI_CERT_IMG): $(EFI_DB_DIR) $(EFI_KEK_AUTH)
 	cp -u $(OUT_PATH)/PK.auth $(OUT_PATH)/KEK.auth $(EFI_DB_DIR)
@@ -438,10 +496,10 @@ endif
 
 ifeq ($(GRUB2),y)
 QEMU_EXTRA_ARGS +=\
-	-drive if=none,file=$(KERNEL_EXT4),format=raw,id=hd0 \
-	-device virtio-blk-device,drive=hd0 \
-	-drive file=$(ROOTFS_EXT4),if=none,format=raw,id=vda \
-	-device virtio-blk-device,drive=vda
+	-drive if=none,file=$(KERNEL_EXT4),format=raw,id=hd1 \
+	-device virtio-blk-device,drive=hd1 \
+	-drive file=$(ROOTFS_EXT4),if=none,format=raw,id=hd0 \
+	-device virtio-blk-device,drive=hd0
 endif
 
 ifeq ($(ENVSTORE),y)
