@@ -1,0 +1,33 @@
+arch=arm
+baudrate=115200
+board_name=qemu-arm
+board=qemu-arm
+bootdelay=2
+cpu=armv8
+efi_dtb_prefixes=/ /dtb/ /dtb/current/
+stderr=pl011@9000000
+stdin=pl011@9000000
+stdout=pl011@9000000
+vendor=emulation
+
+# Addresses
+fdt_addr=0x40000000
+fdt_high=0xffffffff
+initrd_high=0xffffffff
+kernel_addr_r=0x40400000
+ramdisk_addr_r=0x44000000
+
+# Fit configs
+fitconfig1=run netloadfit; bootm 0x48000000#config-1
+fitconfig2=run netloadfit; bootm 0x48000000#config-2
+fitconfig3=run netloadfit; bootm 0x48000000#config-3
+fitconfig4=run netloadfit; bootm 0x48000000#config-4
+
+# Netboot targets
+netboot=dhcp; setenv serverip 192.168.1.110; tftp 0x40400000 uImage; tftp 0x44000000 rootfs.cpio.uboot; bootm 0x40400000 0x44000000 0x40000000
+netbootfit=dhcp; setenv serverip 192.168.1.110; tftp 0x48000000 image.fit; bootm
+netbootgrub=dhcp; setenv serverip 192.168.1.110; tftp 0x40400000 grub2-arm64.efi; bootefi 0x40400000
+netloadfit=dhcp; setenv serverip 192.168.1.110; tftp 0x48000000 image.fit
+
+# Misc
+nvme_init=if ${nvme_need_init}; then setenv nvme_need_init false; nvme scan; fi

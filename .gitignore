@@ -1,2 +1,3 @@
 *.swp
 gdb
+kconfigs/u-boot/env.conf

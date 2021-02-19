@@ -25,6 +25,7 @@ GDB				?= n
 GRUB2				?= y
 QEMU_VIRTFS_ENABLE		?= y
 QEMU_VIRTFS_HOST_DIR		?= $(ROOT)
+USE_CUSTOM_UBOOT_ENV		?= y
 VARIABLES			?= n
 
 # Binaries and general files
@@ -44,6 +45,8 @@ QEMU_ENV			?= $(OUT_PATH)/envstore.img
 ROOTFS_EXT4			?= $(BR_PATH)/output/images/rootfs.ext4
 ROOTFS_GZ			?= $(BR_PATH)/output/images/rootfs.cpio.gz
 ROOTFS_UGZ			?= $(BR_PATH)/output/images/rootfs.cpio.uboot
+UBOOT_ENV_SRC			?= $(BUILD_PATH)/uboot-env.txt
+UBOOT_ENV_CONF			?= $(BUILD_PATH)/kconfigs/u-boot/env.conf
 
 # Load and entry addresses
 KERNEL_ENTRY			?= 0x40400000
@@ -193,11 +196,10 @@ grub2-help:
 	@echo "\n================================================================================"
 	@echo "= GRUB2 help                                                                   ="
 	@echo "================================================================================"
-	@echo "Run these commands at the grub2 shell:"
+	@echo "Boot kernel from grub2 shell:"
 	@echo "  insmod linux"
 	@echo "  linux (hd1)/Image root=/dev/vda"
 	@echo "  boot"
-	@echo "\nOnce done, Linux will boot up"
 
 .PHONY: grub2-clean
 grub2-clean:
@@ -278,9 +280,10 @@ qemu-help:
 	@echo "\n================================================================================"
 	@echo "= QEMU                                                                         ="
 	@echo "================================================================================"
-	@echo "Run this at the shell in Buildroot:"
-	@echo "  mkdir /host && mount -t 9p -o trans=virtio host /host"
-	@echo "\nOnce done, you can access the host PC's files"
+	@echo "Mount host filesystem in Buildroot"
+	@echo "  Run this at the shell in Buildroot:"
+	@echo "    mkdir /host && mount -t 9p -o trans=virtio host /host"
+	@echo "  Once done, you can access the host PC's files"
 
 .PHONY: qemu-clean
 qemu-clean:
@@ -329,12 +332,30 @@ fit-signed: buildroot $(QEMU_DTB) linux generate-control-fdt $(OUT_PATH)
 				-r \
 				$(FITIMAGE)
 
+create-uboot-env: $(OUT_PATH)
+	echo "Creating envstore image with load target ..."
+	$(UBOOT_PATH)/tools/mkenvimage -s 0x4000000 -o $(QEMU_ENV) $(UBOOT_ENV_SRC)
 
 ################################################################################
 # U-boot
 ################################################################################
 UBOOT_DEFCONFIG_FILES	:= $(UBOOT_PATH)/configs/qemu_arm64_defconfig \
 			   $(BUILD_PATH)/kconfigs/u-boot/efi-deps.conf
+
+# There might be a better way to do this, basically all we want to do is to add
+# the `CONFIG_DEFAULT_ENV_FILE` path so merge_config will pick it up. Seems
+# like the AARCH64_PATH trick we did for buildroot doesn't work for U-Boot.
+ifeq ($(USE_CUSTOM_UBOOT_ENV),y)
+# We don't want to recreate this file, since it might force unnecessary
+# recompiles and if a user want to manually change it, we don't want the file to
+# be overridden.
+ifeq (,$(wildcard $(UBOOT_ENV_CONF)))
+$(info Creating $(UBOOT_ENV_CONF) ...)
+$(shell echo "CONFIG_USE_DEFAULT_ENV_FILE=y" > $(UBOOT_ENV_CONF))
+$(shell echo "CONFIG_DEFAULT_ENV_FILE=\"$(UBOOT_ENV_SRC)\"" >> $(UBOOT_ENV_CONF))
+endif
+UBOOT_DEFCONFIG_FILES	+= $(BUILD_PATH)/kconfigs/u-boot/env.conf
+endif
 
 ifeq ($(SIGN),y)
 UBOOT_EXTRA_ARGS	?= EXT_DTB=$(CONTROL_FDT_DTB)
