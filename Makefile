@@ -218,7 +218,7 @@ $(LINUX_PATH)/.config: $(LINUX_DEFCONFIG_FILES)
 
 linux-defconfig: $(LINUX_PATH)/.config
 
-linux: linux-defconfig $(OUT_PATH) uimage
+linux: linux-defconfig $(OUT_PATH)
 	yes | $(MAKE) -C $(LINUX_PATH) \
 		ARCH=arm64 CROSS_COMPILE="$(CCACHE)$(AARCH64_CROSS_COMPILE)" \
 		Image.gz dtbs && \
@@ -249,7 +249,7 @@ qemu-configure:
 		--enable-virtfs
 
 # Helper target to run configure if config-host.mak doesn't exist or has been
-# updated. This avoid re-run configure everytime we run the "qemu" target.
+# updated. This avoid re-run configure every time we run the "qemu" target.
 $(QEMU_PATH)/config-host.mak:
 	$(MAKE) qemu-configure
 
@@ -294,7 +294,7 @@ qemu-clean:
 # mkimage - create images to be loaded by U-boot
 ################################################################################
 # Without the objcopy, the uImage will be 10x bigger.
-uimage: $(KERNEL_IMAGE) $(OUT_PATH)
+uimage: linux $(OUT_PATH)
 	${AARCH64_CROSS_COMPILE}objcopy -O binary \
 					-R .note \
 					-R .comment \
@@ -482,8 +482,6 @@ create-key-img: $(EFI_CERT_IMG)
 #   setenv -e -nv -bs -rt -at -i 0x70000000,$filesize PK
 #   load nvme 0 0x70000000 KEK.auth
 #   setenv -e -nv -bs -rt -at -i 0x70000000,$filesize KEK
-
-
 
 ################################################################################
 # Run targets
