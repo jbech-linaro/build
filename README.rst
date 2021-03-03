@@ -60,22 +60,28 @@ Next sync the actual tree
     $ repo sync -j4
 
 
-Configure netboot
-=================
+U-Boot command sequences
+========================
 When running the ``run-netboot`` make command, you will boot up U-Boot and from
-there you have different alternatives on how to continue. You can boot kernel
-directly, boot into grub2 or boot fit-images. To do that you need a couple of
-"run" environment variables in U-Boot. The file
-``<project_path>/build/uboot-env.txt`` has been pre-populated with the supported
-boot targets. However, the IP-address for the TFTP-server has been hard-coded to
-``192.168.1.110``. This needs to be changed to the IP-address of your own host
-system before doing the build. So, go ahead and do that right away. Supported
-boot target / U-Boot commands are as below and we will use these later on.
+there you have different alternatives on how to continue. If you do not stop the
+count down U-boot will attempt to load the ``./out/uEnv.txt`` file from tftp,
+import its values, and run any defined ``uenvcmd``.  The
+``./build/example-uEnv.txt`` will be copied to ``./out/uEnv.txt`` if that files
+does not already exist. The example sets and displays a few variables and then
+runs the ``netbootgrub`` script described below.
+
+If you stop the U-boot count down you can run any U-Boot command.  Of note are
+several predefined scripts.  These scripts allow you to boot the kernel
+directly via individual files, boot into grub2, or boot fit-images. Theses
+scripts are built into the U-boot default environment via the
+``<project_path>/build/uboot-env.txt`` file.
+
+Supported boot target / U-Boot commands are as below:
 
 +-----------------+-------------------------------------------------------+
 | U-Boot command  | Description                                           |
 +=================+=======================================================+
-| run netboot     | boot Linux kernel                                     |
+| run netboot     | boot Linux kernel in U-boot uImage format             |
 +-----------------+-------------------------------------------------------+
 | run netbootgrub | boot Grub2                                            |
 +-----------------+-------------------------------------------------------+
@@ -121,8 +127,6 @@ at those in case you get an build error.
 
 Run targets
 ===========
-Before running the "netboot" targets, first configure TFTP as described further
-down.
 
 **Netboot using raw files**
 
@@ -145,12 +149,9 @@ Linux kernel directly
     $ make run-netboot
     => run netbootgrub
 
-At the Grub2 prompt, write this to boot up Linux
-
-.. code-block:: bash
-
-    grub> linux (hd1)/Image root=/dev/vda
-    grub> boot
+Grub will present a menu with a count down and default choice.
+Pressing any key will stop the count down and allow you to make a choice, edit
+a given entry, or drop to a grub command prompt.
 
 **Netboot using FIT image**
 
@@ -218,6 +219,17 @@ TFTP
 ****
 Setup the TFTP server
 =====================
+
+This project is configured to use the TFTP server built into QEMU.  Setting up
+a TFTP server on your development machine is not required.
+
+However, if you wish to use an external TFTP server you may.  The below
+instructions outline using tftpd.  tftpd will conflict with tftpd-hpa, another
+popular TFTP server.  The symlinks used by the project are not compatible with
+tftp-hpa.  If you are using tftpd-hpa on your development machine it is
+recommended that you use the built-in QEMU tftp server as already setup by this
+project.
+
 Credits to the author of `this <https://developer.ridgerun.com/wiki/index.php?title=Setting_Up_A_Tftp_Service>`_
 guide.
 
@@ -255,6 +267,18 @@ Start tftpd through xinetd
 .. code-block:: bash
 
     $ sudo /etc/init.d/xinetd restart
+
+Modify uboot-env.txt
+====================
+Edit the build/uboot-env.txt file to uncomment the serverip_static variable
+setting and specify your machine's real IP address. (Not the loopback or
+localhost address).
+
+Rebuild the project
+.. code-block:: bash
+
+    $ make -j 4
+
 
 Symlink the necessary files
 ===========================
