@@ -111,7 +111,7 @@ QEMU_VIRTFS_MOUNTPOINT	?= /mnt/host
 ifeq ($(COMPILE_NS_USER),64)
 MULTIARCH			:= aarch64-linux-gnu
 else
-MULTIARCH			:= arm-linux-gnueabihf
+MULTIARCH			:= arm-none-linux-gnueabihf
 endif
 
 ################################################################################
