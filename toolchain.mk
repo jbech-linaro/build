@@ -6,7 +6,7 @@ ROOT				?= $(CURDIR)/..
 TOOLCHAIN_ROOT 			?= $(ROOT)/toolchains
 
 AARCH32_PATH 			?= $(TOOLCHAIN_ROOT)/aarch32
-AARCH32_CROSS_COMPILE 		?= $(AARCH32_PATH)/bin/arm-linux-gnueabihf-
+AARCH32_CROSS_COMPILE 		?= $(AARCH32_PATH)/bin/arm-none-linux-gnueabihf-
 AARCH32_GCC_VERSION 		?= gcc-arm-9.2-2019.12-x86_64-arm-none-linux-gnueabihf
 SRC_AARCH32_GCC 		?= https://developer.arm.com/-/media/Files/downloads/gnu-a/9.2-2019.12/binrel/$(AARCH32_GCC_VERSION).tar.xz
 
