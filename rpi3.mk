@@ -47,7 +47,7 @@ OPTEE_BIN		?= $(OPTEE_PATH)/out/arm/core/tee-header_v2.bin
 OPTEE_BIN_EXTRA1	?= $(OPTEE_PATH)/out/arm/core/tee-pager_v2.bin
 OPTEE_BIN_EXTRA2	?= $(OPTEE_PATH)/out/arm/core/tee-pageable_v2.bin
 
-NFS 			?= /media/jbech/TSHB_LINUX/srv/nfs/optee-fs
+NFS 			?= /srv/optee-fs
 
 LINUX_IMAGE		?= $(LINUX_PATH)/arch/arm64/boot/Image
 LINUX_DTB_RPI3_B	?= $(LINUX_PATH)/arch/arm64/boot/dts/broadcom/bcm2710-rpi-3-b.dtb
