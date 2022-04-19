@@ -324,10 +324,12 @@ ctxtAdd: fun-sim
 	cd $(FUN_SIM_PATH) && ./build/examples/ctxtAdd
 
 QEMU_BIN		?= $(QEMU_PATH)/build/qemu-system-x86_64
-QEMU_CONSOLE		?= -append "console=ttyS0"
+QEMU_CONSOLE		?= -append "console=ttyS0 cma=2080MG"
 QEMU_KERNEL		?= -kernel $(LINUX_PATH)/arch/x86_64/boot/bzImage
 QEMU_INITRD		?= -initrd $(OUT_PATH)/initramfs.cpio.gz
-QEMU_ARGS		?= -nographic
+QEMU_ARGS		?= -nographic \
+			   -m 4096 \
+			   -device edu,dma_mask=0xffffffffffffffff
 QEMU_ENV		?= $(OUT_PATH)/envstore.img
 
 ifeq ($(ARCH),arm64)
@@ -338,11 +340,9 @@ QEMU_ARGS		+= -smp 1 \
 			   -machine virt \
 			   -cpu cortex-a57 \
 			   -d unimp \
-			   -m 4096 \
 			   -no-acpi \
 			   -netdev user,id=vmnic,tftp=$(ROOT)/out,bootfile=uEnv.txt \
-			   -device virtio-net-device,netdev=vmnic \
-			   -device edu,dma_mask=0xffffffffffffffff
+			   -device virtio-net-device,netdev=vmnic
 QEMU_VIRTFS_HOST_DIR	?= $(CURDIR)
 
 ifeq ($(QEMU_VIRTFS_ENABLE),y)
