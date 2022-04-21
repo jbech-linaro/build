@@ -19,6 +19,8 @@ GOOGLETEST_INCLUDE_DIR		?= $(GOOGLETEST_PATH)/googletest/include
 LINUX_PATH			?= $(ROOT)/linux
 MODULE_OUTPUT			?= $(OUT_PATH)/kernel_modules
 NTL_PATH			?= $(ROOT)/ntl
+NTL_ARM64_PREBUILT_PATH		?= $(BUILD_PATH)/prebuilt/arm64/ntl-v11.5.1
+GMP_ARM64_PREBUILT_PATH		?= $(BUILD_PATH)/prebuilt/arm64/gmp-6.2.1
 QEMU_PATH			?= $(ROOT)/qemu
 UDMABUF_PATH			?= $(ROOT)/udmabuf
 
@@ -39,10 +41,6 @@ ifeq ($(ARCH),arm64)
 	QEMU_VIRTFS_ENABLE ?= y
 endif
 
-
-# Binaries and general files
-LIBNTL_A			?= $(OUT_PATH)/ntl/lib/libntl.a
-
 ################################################################################
 # Sanity checks
 ################################################################################
@@ -56,7 +54,7 @@ endif
 ################################################################################
 # Targets
 ################################################################################
-TARGET_DEPS := build busybox fun-sim ntl linux qemu
+TARGET_DEPS := build busybox fun-sim linux qemu
 
 ifeq ($(CFG_ENABLE_GTESTS),y)
 TARGET_DEPS += googletest
@@ -181,11 +179,23 @@ googletest-clean:
 ################################################################################
 # fun_sim
 ################################################################################
+ifeq ($(ARCH),arm64)
+fun-sim:
+	cd $(FUN_SIM_PATH) && export NTL_PATH=$(NTL_ARM64_PREBUILT_PATH) && \
+		export GMP_PATH=$(GMP_ARM64_PREBUILT_PATH) && \
+		export CROSS_COMPILE=$(CROSS_COMPILE_PREFIX) && \
+		$(MAKE)
+else
 fun-sim: ntl
-	cd $(FUN_SIM_PATH) && export NTL_PATH=$(OUT_PATH)/ntl/ && scons -j8
+	cd $(FUN_SIM_PATH) && export NTL_PATH=$(OUT_PATH)/ntl/ && $(MAKE)
+endif
 
+ifeq ($(ARCH),arm64)
 fun-sim-clean:
-	cd $(FUN_SIM_PATH) && git clean -xdf
+else
+fun-sim-clean: ntl-clean
+endif
+	cd $(FUN_SIM_PATH) && $(MAKE) clean
 
 ################################################################################
 # fun_sim_app
@@ -377,7 +387,7 @@ run-kernel:
 # Clean
 ################################################################################
 .PHONY: clean
-clean: busybox-clean fun-sim-clean googletest-clean linux-clean ntl-clean qemu-clean
+clean: busybox-clean fun-sim-clean googletest-clean linux-clean qemu-clean
 
 .PHONY: distclean
 distclean: clean
