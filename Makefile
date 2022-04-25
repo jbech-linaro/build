@@ -184,10 +184,15 @@ fun-sim:
 	cd $(FUN_SIM_PATH) && export NTL_PATH=$(NTL_ARM64_PREBUILT_PATH) && \
 		export GMP_PATH=$(GMP_ARM64_PREBUILT_PATH) && \
 		export CROSS_COMPILE=$(CROSS_COMPILE_PREFIX) && \
+		export GOOGLETEST_LIB_DIR=$(GOOGLETEST_LIB_DIR) && \
+		export GOOGLETEST_INCLUDE_DIR=$(GOOGLETEST_INCLUDE_DIR) && \
 		$(MAKE)
 else
 fun-sim: ntl
-	cd $(FUN_SIM_PATH) && export NTL_PATH=$(OUT_PATH)/ntl/ && $(MAKE)
+	cd $(FUN_SIM_PATH) && export NTL_PATH=$(OUT_PATH)/ntl/ && \
+		export GOOGLETEST_LIB_DIR=$(GOOGLETEST_LIB_DIR) && \
+		export GOOGLETEST_INCLUDE_DIR=$(GOOGLETEST_INCLUDE_DIR) && \
+		$(MAKE)
 endif
 
 ifeq ($(ARCH),arm64)
