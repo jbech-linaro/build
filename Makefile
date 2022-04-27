@@ -10,6 +10,7 @@ BINARIES_PATH			?= $(ROOT)/out/bin
 BUILD_PATH			?= $(ROOT)/build
 BUSYBOX_PATH			?= $(ROOT)/busybox
 FUN_SIM_PATH			?= $(ROOT)/fun_sim
+FUN_SIM_TESTS			?= $(FUN_SIM_PATH)/out/gtest/fun_sim_test
 FUN_SIM_APP_PATH		?= $(ROOT)/fun_sim_app
 GOOGLETEST_PATH			?= $(ROOT)/googletest
 GOOGLETEST_OUT			?= $(GOOGLETEST_PATH)/build
@@ -89,7 +90,7 @@ busybox-build: busybox-defconfig
 		CROSS_COMPILE="$(CCACHE)$(CROSS_COMPILE_PREFIX)" \
 		install
 
-busybox-initramfs: busybox-build udmabuf fun-sim-app
+busybox-initramfs: busybox-build udmabuf fun-sim-app fun-sim
 	rm -rf $(INITRAMFS_OUT)
 	mkdir -p $(INITRAMFS_OUT)/busybox/bin
 	mkdir -p $(INITRAMFS_OUT)/busybox/sbin
@@ -103,6 +104,8 @@ busybox-initramfs: busybox-build udmabuf fun-sim-app
 	cp -av $(BUSYBOX_OUT)/_install/* $(INITRAMFS_OUT)/busybox
 	cp -av $(UDMABUF_PATH)/u-dma-buf.ko $(INITRAMFS_OUT)/busybox/lib/modules
 	cp -av $(FUN_SIM_APP_PATH)/fun_sim_app $(INITRAMFS_OUT)/busybox/usr/bin
+	cp -av $(FUN_SIM_TESTS) $(INITRAMFS_OUT)/busybox/usr/bin
+	cp -av $(FUN_SIM_PATH)/config.txt $(INITRAMFS_OUT)/busybox/
 
 busybox-init: busybox-initramfs
 	echo "alias ll='ls -all'" > $(PROFILE)
@@ -180,7 +183,7 @@ googletest-clean:
 # fun_sim
 ################################################################################
 ifeq ($(ARCH),arm64)
-fun-sim:
+fun-sim: googletest
 	cd $(FUN_SIM_PATH) && export NTL_PATH=$(NTL_ARM64_PREBUILT_PATH) && \
 		export GMP_PATH=$(GMP_ARM64_PREBUILT_PATH) && \
 		export CROSS_COMPILE=$(CROSS_COMPILE_PREFIX) && \
@@ -188,7 +191,7 @@ fun-sim:
 		export GOOGLETEST_INCLUDE_DIR=$(GOOGLETEST_INCLUDE_DIR) && \
 		$(MAKE)
 else
-fun-sim: ntl
+fun-sim: ntl googletest
 	cd $(FUN_SIM_PATH) && export NTL_PATH=$(OUT_PATH)/ntl/ && \
 		export GOOGLETEST_LIB_DIR=$(GOOGLETEST_LIB_DIR) && \
 		export GOOGLETEST_INCLUDE_DIR=$(GOOGLETEST_INCLUDE_DIR) && \
