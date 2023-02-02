@@ -50,5 +50,6 @@ echo "alias lk='locki debug -k'" >> "$TARGET_DIR"/etc/profile
 echo "alias au='locki user -u user -p password -s 123 -f f'" >> "$TARGET_DIR"/etc/profile
 echo "alias am='locki measure -u user -p password -r 1 -d abc'" >> "$TARGET_DIR"/etc/profile
 echo "alias ak='locki key -u user -p password -r 1 -h 1'" >> "$TARGET_DIR"/etc/profile
+echo "alias ka='killall -9 locki'" >> "$TARGET_DIR"/etc/profile
 
 echo "alias all='mkdir -p /host && mount -t 9p -o trans=virtio host /host && cd /lib/optee_armtz && ln -sf /host/locki/locki/ta/f13982ac-0ef8-46a6-b12c-ea79154c30e2.ta f13982ac-0ef8-46a6-b12c-ea79154c30e2.ta && cd /usr/bin && ln -sf /host/locki/locki/host/locki locki && cd /usr/lib && ln -sf /host/locki/locki/lib/liblocki.so liblocki.so && cd /usr/bin && ln -sf /host/locki/locki/test/locki_test locki_test'" >> "$TARGET_DIR"/etc/profile
