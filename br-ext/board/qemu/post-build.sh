@@ -41,3 +41,6 @@ if [[ $PSS_AUTOMOUNT == "y" ]]; then
     echo "secure /data/tee 9p trans=virtio,version=9p2000.L,msize=65536,rw 0 0" >> "$TARGET_DIR"/etc/fstab
     echo "[+] persistent secure storage mount added to fstab"
 fi
+
+echo "alias ll='ls -al'" >> $TARGET_DIR/etc/profile
+echo "alias h='hexdump -C'" >> $TARGET_DIR/etc/profile
