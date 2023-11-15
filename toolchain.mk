@@ -53,8 +53,8 @@ SRC_AARCH32_GCC 		?= https://developer.arm.com/-/media/Files/downloads/gnu/11.3.
 
 AARCH64_PATH 			?= $(TOOLCHAIN_ROOT)/aarch64.12.3.linaro
 AARCH64_CROSS_COMPILE 		?= $(AARCH64_PATH)/bin/aarch64-linux-gnu-
-AARCH64_GCC_VERSION 		?= arm-gnu-toolchain-11.3.rel1-x86_64-aarch64-none-linux-gnu
-SRC_AARCH64_GCC 		?= https://developer.arm.com/-/media/Files/downloads/gnu/11.3.rel1/binrel/$(AARCH64_GCC_VERSION).tar.xz
+AARCH64_GCC_VERSION 		?= gcc-linaro-12.3.1-2023.06-x86_64_aarch64-linux-gnu
+SRC_AARCH64_GCC 		?= https://snapshots.linaro.org/gnu-toolchain/12.3-2023.06-1/aarch64-linux-gnu/$(AARCH64_GCC_VERSION).tar.xz
 
 .PHONY: toolchains
 toolchains: aarch32 aarch64
