@@ -44,3 +44,4 @@ fi
 
 echo "alias ll='ls -al'" >> $TARGET_DIR/etc/profile
 echo "alias h='hexdump -C'" >> $TARGET_DIR/etc/profile
+echo "alias xs='xtest --sdp-basic'" >> $TARGET_DIR/etc/profile
