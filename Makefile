@@ -20,10 +20,10 @@ PLATFORM			?= qemu
 CCACHE_DIR			?= $(HOME)/.ccache
 
 # Configuration
-ENVSTORE			?= y
+ENVSTORE			?= n
 GDB				?= n
-GRUB2				?= y
-QEMU_VIRTFS_ENABLE		?= y
+GRUB2				?= n
+QEMU_VIRTFS_ENABLE		?= n
 QEMU_VIRTFS_HOST_DIR		?= $(ROOT)
 USE_CUSTOM_UBOOT_ENV		?= y
 VARIABLES			?= n
@@ -568,7 +568,7 @@ run-kernel:
 		$(QEMU_ARGS) \
 		$(QEMU_KERNEL) \
                 -append "console=ttyAMA0" \
-		$(QEMU_EXTRA_ARGS)
+		$(QEMU_EXTRA_ARGS) 2>&1 | tee $(OUT_PATH)/run.log
 
 # Target to run just Linux kernel directly and pulling the root fs separately.
 .PHONY: run-kernel-initrd
@@ -579,7 +579,7 @@ run-kernel-initrd:
 		$(QEMU_KERNEL) \
 		-initrd $(ROOTFS_GZ) \
                 -append "console=ttyAMA0" \
-		$(QEMU_EXTRA_ARGS)
+		$(QEMU_EXTRA_ARGS) 2>&1 | tee $(OUT_PATH)/run.log
 
 
 ################################################################################
