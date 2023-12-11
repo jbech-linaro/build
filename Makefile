@@ -234,6 +234,39 @@ linux: linux-defconfig $(OUT_PATH)
 	ln -sf $(KERNEL_IMAGE) $(OUT_PATH)/ && \
 	ln -sf $(KERNEL_IMAGEGZ) $(OUT_PATH)/
 
+linux-oldcfg:
+	yes "" | $(MAKE) -C $(LINUX_PATH) \
+		ARCH=arm64 CROSS_COMPILE="$(CCACHE)$(AARCH64_CROSS_COMPILE)" oldconfig
+
+linux-oldconfig: linux-oldcfg $(OUT_PATH)
+	yes "" | $(MAKE) -C $(LINUX_PATH) \
+		ARCH=arm64 CROSS_COMPILE="$(CCACHE)$(AARCH64_CROSS_COMPILE)" \
+		Image.gz dtbs && \
+	ln -sf $(KERNEL_IMAGE) $(OUT_PATH)/ && \
+	ln -sf $(KERNEL_IMAGEGZ) $(OUT_PATH)/
+
+linux-tinycfg:
+	yes "" | $(MAKE) -C $(LINUX_PATH) \
+		ARCH=arm64 CROSS_COMPILE="$(CCACHE)$(AARCH64_CROSS_COMPILE)" tinyconfig
+
+linux-tinyconfig: linux-tinycfg $(OUT_PATH)
+	yes "" | $(MAKE) -C $(LINUX_PATH) \
+		ARCH=arm64 CROSS_COMPILE="$(CCACHE)$(AARCH64_CROSS_COMPILE)" \
+		Image.gz dtbs && \
+	ln -sf $(KERNEL_IMAGE) $(OUT_PATH)/ && \
+	ln -sf $(KERNEL_IMAGEGZ) $(OUT_PATH)/
+
+linux-allnocfg:
+	yes "" | $(MAKE) -C $(LINUX_PATH) \
+		ARCH=arm64 CROSS_COMPILE="$(CCACHE)$(AARCH64_CROSS_COMPILE)" allnoconfig
+
+linux-allnoconfig: linux-allnocfg $(OUT_PATH)
+	yes "" | $(MAKE) -C $(LINUX_PATH) \
+		ARCH=arm64 CROSS_COMPILE="$(CCACHE)$(AARCH64_CROSS_COMPILE)" \
+		Image.gz dtbs && \
+	ln -sf $(KERNEL_IMAGE) $(OUT_PATH)/ && \
+	ln -sf $(KERNEL_IMAGEGZ) $(OUT_PATH)/
+
 .PHONY: linux-menuconfig
 linux-menuconfig: $(LINUX_PATH)/.config
 	$(MAKE) -C $(LINUX_PATH) ARCH=arm64 menuconfig
