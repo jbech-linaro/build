@@ -269,7 +269,8 @@ linux-allnoconfig: linux-allnocfg $(OUT_PATH)
 
 .PHONY: linux-menuconfig
 linux-menuconfig: $(LINUX_PATH)/.config
-	$(MAKE) -C $(LINUX_PATH) ARCH=arm64 menuconfig
+	$(MAKE) -C $(LINUX_PATH) \
+		ARCH=arm64 CROSS_COMPILE="$(CCACHE)$(AARCH64_CROSS_COMPILE)" menuconfig
 
 .PHONY: linux-cscope
 linux-cscope:
